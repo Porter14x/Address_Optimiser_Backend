@@ -1,0 +1,38 @@
+services:
+  valhalla-init:
+    image: ghcr.io/valhalla/valhalla:latest
+    volumes:
+      - ./valhalla_data:/data
+    entrypoint: >
+      bash -c "
+        set -e;
+        cd /data;
+         if [ ! -f valhalla.json.sha256 ] || ! sha256sum -c valhalla.json.sha256 > /dev/null 2>&1; then
+          echo '[init] Generating config...';
+          valhalla_build_config > /data/valhalla.json;
+          valhalla_build_timezones > /data/timezones.sqlite;
+          echo '[init] Building tiles...';
+          valhalla_build_tiles -c /data/valhalla.json /data/scotland-latest.osm.pbf;
+          sha256sum valhalla.json > valhalla.json.sha256;
+          echo '[init] Done.';
+        else
+          echo '[init] Config already exists, skipping.';
+        fi
+      "
+    depends_on: []
+    restart: "no"
+
+  valhalla:
+    image: ghcr.io/valhalla/valhalla:latest
+    container_name: valhalla
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./valhalla_data:/data
+    environment:
+      - VALHALLA_CONF=/data/valhalla.json
+    command: valhalla_service /data/valhalla.json
+    depends_on:
+      - valhalla-init
+    restart: unless-stopped
+
