@@ -208,4 +208,4 @@ __marimo__/
 
 # Valhalla map file and tiling files
 .pbf
-Valhalla/valhalla_data/valhalla/
+Valhalla/valhalla_data/
