@@ -12,14 +12,15 @@ services:
           wget -O ${PBF_FILE} ${PBF_URL};
         else
           echo '[init] PBF file already exists, skipping download.';
+        fi
          if [ ! -f valhalla.json.sha256 ] || ! sha256sum -c valhalla.json.sha256 > /dev/null 2>&1; then
           echo '[init] Generating config...';
           valhalla_build_config > /data/valhalla.json;
           valhalla_build_timezones > /data/timezones.sqlite;
           echo '[init] Building tiles...';
           valhalla_build_tiles -c /data/valhalla.json /data/${PBF_FILE};
-          tar -cvf tiles.tar valhalla
-          mv tiles.tar valhalla
+          tar -cvf tiles.tar valhalla/;
+          mv tiles.tar valhalla/;
           sha256sum valhalla.json > valhalla.json.sha256;
           echo '[init] Done.';
         else
