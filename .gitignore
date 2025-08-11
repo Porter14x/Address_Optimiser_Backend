@@ -209,3 +209,6 @@ __marimo__/
 # Valhalla map file and tiling files
 .pbf
 Valhalla/valhalla_data/
+
+# Nominatim working data
+Nominatim/nominatim-data
