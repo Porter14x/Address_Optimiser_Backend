@@ -212,3 +212,6 @@ Valhalla/valhalla_data/
 
 # Nominatim working data
 Nominatim/nominatim-data
+
+#ignore my venv
+add_opt/
