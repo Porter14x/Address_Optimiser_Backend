@@ -1,3 +1,5 @@
+"""Functions related to interacting with the Nominatim engine should be placed here"""
+
 import requests
 
 GEO_URL = "http://localhost:7070/search" #Nominatim
@@ -13,6 +15,6 @@ def geocode_adds(addresses):
         r = requests.get(GEO_URL, add).json()[0]
         print(r)
         geos.append({"lat": r["lat"], "lon": r["lon"]})
-        #Assume starting address is also ending address
+    #Assume starting address is also ending address
     geos.append(geos[0])
     return geos
