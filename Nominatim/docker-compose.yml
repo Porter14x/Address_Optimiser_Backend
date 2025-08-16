@@ -8,7 +8,7 @@ services:
       - PBF_URL=${PBF_URL}
       - REPLICATION_URL=${REPLICATION_URL}
       - NOMINATIM_PASSWORD=${NOMINATIM_PASSWORD}
-      - IMPORT_POSTCODES=${IMPORT_POSTCODES}
+      - ${IMPORT_POSTCODES}
       - POSTGRES_EXTRA_CONF=${POSTGRES_EXTRA_CONF}
     volumes:
       - ./nominatim-data:/var/lib/postgresql/14/main

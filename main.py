@@ -1,13 +1,17 @@
 from flask import Flask, request
-import requests
+import nominatim
+import valhalla
 app = Flask(__name__)
 
-GEO_URL = "http://localhost:7070/search" #Nominatim
-ROUTE_URL = "http://localhost:8002/optimized_route" #Valhalla
+@app.route('/optimise', methods=["POST"])
+def optimise_addreses():
+    request_data = request.get_json()
+    addresses = request_data['addresses']
 
-@app.route('/', methods=["POST"])
-def hello():
-    return "hello"
+    geos = nominatim.geocode_adds(addresses)
+    opt_adds = valhalla.optimise_adds(geos)
+
+    return opt_adds
 
 if __name__=='__main__': 
-    app.run(debug=True, )
+    app.run(debug=True, host='0.0.0.0', port=5000)
