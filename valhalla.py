@@ -21,4 +21,3 @@ def optimise_adds(geocodes):
     response = requests.post(ROUTE_URL, headers=headers, json=payload).json()
 
     return response['trip']['locations']
-    
