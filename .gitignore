@@ -215,3 +215,6 @@ Nominatim/nominatim-data
 
 #ignore my venv
 add_opt/
+
+#ignore dummy empty test database
+test.db
