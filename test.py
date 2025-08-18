@@ -1,9 +1,12 @@
+"""Unit tests for whole project are placed here"""
+
 import unittest
 import database as d
 import sqlite3
 import os
 
 class TestDatabaseMethods(unittest.TestCase):
+    """Class for testing the functions of database.py"""
 
     con = sqlite3.connect("test.db")
     cur = con.cursor()
@@ -22,7 +25,7 @@ class TestDatabaseMethods(unittest.TestCase):
         self.assertEqual(d.create_table(rb_fail), "Cannot have _rb in table name")
 
         for char in regex_fail_list:
-            self.assertEqual(d.create_table("table"+char), 
+            self.assertEqual(d.create_table("table"+char),
             "Invalid table name. Please ensure only letters, numbers and underscores are used")
 
         d.create_table("dummy")
@@ -35,4 +38,3 @@ class TestDatabaseMethods(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-    
