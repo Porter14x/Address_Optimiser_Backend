@@ -1,9 +1,8 @@
 """Unit tests for whole project are placed here"""
 
 import unittest
-import database as d
 import sqlite3
-import os
+import database as d
 
 class TestDatabaseMethods(unittest.TestCase):
     """Class for testing the functions of database.py"""
@@ -17,6 +16,7 @@ class TestDatabaseMethods(unittest.TestCase):
         return super().setUp()
 
     def test_create_table(self):
+        """test create_table table creation and sanitation"""
         regex_fail_list = ["!", '"', "£", "$", "%", "^", "&", "*", "(", ")", "-", "+","=",
                            "{", "}", "[", "]", "~", "#", ":", ";", "@", "'", "<", ",",
                            ">", ".", "?", "/", "|", "¬", "`",]

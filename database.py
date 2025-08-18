@@ -20,7 +20,7 @@ def create_table(table):
 
     if table in [table[0] for table in cur.execute("SELECT name FROM sqlite_master").fetchall()]:
         return f"Table {table} already exists"
-    
+
     creation = f"CREATE TABLE {table}(street VARCHAR(255), postcode VARCHAR(10))"
     cur.execute(creation)
     return f"Table {table} created"
