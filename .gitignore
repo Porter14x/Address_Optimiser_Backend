@@ -217,5 +217,4 @@ Nominatim/nominatim-data
 add_opt/
 
 #ignore database files
-test.db
-rounds.db
+*.db

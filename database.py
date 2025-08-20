@@ -2,19 +2,10 @@
 
 import sqlite3
 import re
-import atexit
 
-DB_PATH = "rounds.db"
-FORBIDDEN_CHAR = [";", '"',] # list of chars that should never appear in inputs
+FORBIDDEN_CHAR = [";", '"', "'",] # list of chars that should never appear in inputs
 
-con = sqlite3.connect(DB_PATH)
-
-def close_con():
-    con.close()
-
-atexit.register(close_con)
-
-def create_table(table, cur):
+def create_table(table, cur, con):
     """Create a table with the passed name if it doesn't exist"""
 
     #ensure only letters, nums & underscores are in table name eg no space for 'DROP TABLE'
@@ -32,7 +23,7 @@ def create_table(table, cur):
     con.commit()
     return f"Table {table} created"
 
-def insert_table(table, street, postcode, cur):
+def insert_value(table, street, postcode, cur, con):
     """Insert street and postcode values into desired table"""
 
     all_table = [t[0] for t in cur.execute("SELECT name FROM sqlite_master").fetchall()]
@@ -50,8 +41,37 @@ def insert_table(table, street, postcode, cur):
         cur.execute(sql_rb)
     else:
         cur.execute(sql_rb)
-    
+
     sql_in = f"INSERT INTO {table} VALUES (?, ?)"
     cur.execute(sql_in, (street, postcode))
     con.commit()
     return f"Inserted values ({street}, {postcode}) into {table}"
+
+def delete_value(table, street, postcode, cur, con):
+    """delete street and postcode value from desired table"""
+
+    all_table = [t[0] for t in cur.execute("SELECT name FROM sqlite_master").fetchall()]
+
+    for char in FORBIDDEN_CHAR:
+        if char in street or char in postcode:
+            return f"Forbidden character {char} in input"
+        
+    sql_search = f"SELECT street, postcode FROM {table} WHERE street='{street}' AND postcode='{postcode}';"
+    result = [r[0] for r in cur.execute(sql_search).fetchall()]
+    if result == []:
+        return "Street and postcode not found in database"
+
+    rb = f"{table}_rb"
+    sql_rb = f"CREATE TABLE {rb} AS SELECT * FROM {table}"
+
+    if rb in all_table:
+        sql_drop = f"DROP TABLE {rb}"
+        cur.execute(sql_drop)
+        cur.execute(sql_rb)
+    else:
+        cur.execute(sql_rb)
+
+    sql_del = f"DELETE FROM {table} WHERE street='{street}' AND postcode='{postcode}';"
+    cur.execute(sql_del)
+    con.commit()
+    return f"Deleted values ({street}, {postcode}) from {table}"

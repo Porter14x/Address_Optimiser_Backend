@@ -2,9 +2,19 @@
 and calling functions from other modules to satisfy the requests"""
 
 from flask import Flask, request
+import sqlite3
+import atexit
 import nominatim
 import valhalla
 app = Flask(__name__)
+
+DB_PATH = "rounds.db"
+con = sqlite3.connect(DB_PATH)
+
+def close_con():
+    con.close()
+
+atexit.register(close_con)
 
 @app.route('/optimise', methods=["POST"])
 def optimise_addreses():
