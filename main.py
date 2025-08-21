@@ -1,9 +1,9 @@
 """Main.py is responsible for handling requests via Flask 
 and calling functions from other modules to satisfy the requests"""
 
-from flask import Flask, request
 import sqlite3
 import atexit
+from flask import Flask, request
 import nominatim
 import valhalla
 app = Flask(__name__)
@@ -12,6 +12,7 @@ DB_PATH = "rounds.db"
 con = sqlite3.connect(DB_PATH)
 
 def close_con():
+    """Connection closer for atexit to call"""
     con.close()
 
 atexit.register(close_con)

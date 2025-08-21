@@ -3,7 +3,31 @@
 import sqlite3
 import re
 
-FORBIDDEN_CHAR = [";", '"', "'",] # list of chars that should never appear in inputs
+
+
+def forbidden_char_check(street, postcode):
+    FORBIDDEN_CHAR = [";", '"', "'",] # list of chars that should never appear in inputs
+
+    for char in FORBIDDEN_CHAR:
+        if char in street or char in postcode:
+            return (False, char)
+
+    return (True, None)
+
+def rb_helper(table, cur):
+    all_table = [t[0] for t in cur.execute("SELECT name FROM sqlite_master").fetchall()]
+
+    rb = f"{table}_rb"
+    sql_rb = f"CREATE TABLE {rb} AS SELECT * FROM {table}"
+
+    if rb in all_table:
+        sql_drop = f"DROP TABLE {rb}"
+        cur.execute(sql_drop)
+        cur.execute(sql_rb)
+    else:
+        cur.execute(sql_rb)
+
+    return
 
 def create_table(table, cur, con):
     """Create a table with the passed name if it doesn't exist"""
@@ -18,7 +42,7 @@ def create_table(table, cur, con):
     if table in [table[0] for table in cur.execute("SELECT name FROM sqlite_master").fetchall()]:
         return f"Table {table} already exists"
 
-    creation = f"CREATE TABLE {table}(street VARCHAR(255), postcode VARCHAR(10))"
+    creation = f"CREATE TABLE {table}(id INTEGER PRIMARY KEY, street VARCHAR(255), postcode VARCHAR(10))"
     cur.execute(creation)
     con.commit()
     return f"Table {table} created"
@@ -26,23 +50,17 @@ def create_table(table, cur, con):
 def insert_value(table, street, postcode, cur, con):
     """Insert street and postcode values into desired table"""
 
-    all_table = [t[0] for t in cur.execute("SELECT name FROM sqlite_master").fetchall()]
+    valid = forbidden_char_check(street, postcode)
+    if valid[0]==False: return f"Forbidden character {valid[1]} in input"
 
-    for char in FORBIDDEN_CHAR:
-        if char in street or char in postcode:
-            return f"Forbidden character {char} in input"
+    sql_search = f"SELECT street, postcode FROM {table} WHERE street=? AND postcode=?;"
+    result = [r[0] for r in cur.execute(sql_search, (street, postcode)).fetchall()]
+    if len(result) > 0:
+        return "Street and postcode already in database"
 
-    rb = f"{table}_rb"
-    sql_rb = f"CREATE TABLE {rb} AS SELECT * FROM {table}"
+    rb_helper(table, cur)
 
-    if rb in all_table:
-        sql_drop = f"DROP TABLE {rb}"
-        cur.execute(sql_drop)
-        cur.execute(sql_rb)
-    else:
-        cur.execute(sql_rb)
-
-    sql_in = f"INSERT INTO {table} VALUES (?, ?)"
+    sql_in = f"INSERT INTO {table} (street, postcode) VALUES (?, ?)"
     cur.execute(sql_in, (street, postcode))
     con.commit()
     return f"Inserted values ({street}, {postcode}) into {table}"
@@ -50,28 +68,38 @@ def insert_value(table, street, postcode, cur, con):
 def delete_value(table, street, postcode, cur, con):
     """delete street and postcode value from desired table"""
 
-    all_table = [t[0] for t in cur.execute("SELECT name FROM sqlite_master").fetchall()]
+    valid = forbidden_char_check(street, postcode)
+    if valid[0]==False: return f"Forbidden character {valid[1]} in input"
 
-    for char in FORBIDDEN_CHAR:
-        if char in street or char in postcode:
-            return f"Forbidden character {char} in input"
-        
-    sql_search = f"SELECT street, postcode FROM {table} WHERE street='{street}' AND postcode='{postcode}';"
-    result = [r[0] for r in cur.execute(sql_search).fetchall()]
+    sql_search = f"SELECT street, postcode FROM {table} WHERE street=? AND postcode=?;"
+    result = [r[0] for r in cur.execute(sql_search, (street, postcode)).fetchall()]
     if result == []:
         return "Street and postcode not found in database"
 
-    rb = f"{table}_rb"
-    sql_rb = f"CREATE TABLE {rb} AS SELECT * FROM {table}"
+    rb_helper(table, cur)
 
-    if rb in all_table:
-        sql_drop = f"DROP TABLE {rb}"
-        cur.execute(sql_drop)
-        cur.execute(sql_rb)
-    else:
-        cur.execute(sql_rb)
-
-    sql_del = f"DELETE FROM {table} WHERE street='{street}' AND postcode='{postcode}';"
-    cur.execute(sql_del)
+    sql_del = f"DELETE FROM {table} WHERE street=? AND postcode=?;"
+    cur.execute(sql_del, (street, postcode))
     con.commit()
     return f"Deleted values ({street}, {postcode}) from {table}"
+
+def delete_table(table, cur, con):
+    """Fully delete a table and its rollback - irreversible"""
+
+    #ensure only letters, nums & underscores are in table name eg no space for 'DROP TABLE'
+    if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", table):
+        return "Invalid table name. Please ensure only letters, numbers and underscores are used"
+
+    if "_rb" in table:
+        return "Cannot have _rb in table name"
+
+    if table not in [table[0] for table in cur.execute("SELECT name FROM sqlite_master").fetchall()]:
+        return f"Table {table} does not exist"
+    
+    sql_drop = f"DROP TABLE {table};"
+    sql_drop_rb = f"DROP TABLE {table}_rb;"
+
+    cur.execute(sql_drop)
+    cur.execute(sql_drop_rb)
+    con.commit()
+    return f"Table {table} and its rollback deleted"

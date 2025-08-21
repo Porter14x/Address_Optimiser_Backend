@@ -42,7 +42,7 @@ class TestDatabaseMethods(unittest.TestCase):
 
         d.create_table("dummy", cur, self.con)
 
-        FORBIDDEN_CHAR = [";", '"',]
+        FORBIDDEN_CHAR = [";", '"', "'",]
         for char in FORBIDDEN_CHAR:
             self.assertEqual(d.insert_value("dummy", "street", f"{char}postcode",
                                             cur, self.con), f"Forbidden character {char} in input")
@@ -53,8 +53,8 @@ class TestDatabaseMethods(unittest.TestCase):
 
         output = d.insert_value("dummy", "1 House St", "A01", cur, self.con)
         self.assertEqual(output, "Inserted values (1 House St, A01) into dummy")
-        result_dummy = cur.execute("SELECT * FROM dummy").fetchall()
-        result_dummy_rb = cur.execute("SELECT * FROM dummy_rb").fetchall()
+        result_dummy = cur.execute("SELECT street, postcode FROM dummy").fetchall()
+        result_dummy_rb = cur.execute("SELECT street, postcode FROM dummy_rb").fetchall()
         all_tables = [r[0] for r in
                       cur.execute("SELECT name FROM sqlite_master").fetchall()]
 
@@ -64,8 +64,8 @@ class TestDatabaseMethods(unittest.TestCase):
 
         output = d.insert_value("dummy", "2 House St", "A01", cur, self.con)
         self.assertEqual(output, "Inserted values (2 House St, A01) into dummy")
-        result_dummy = cur.execute("SELECT * FROM dummy").fetchall()
-        result_dummy_rb = cur.execute("SELECT * FROM dummy_rb").fetchall()
+        result_dummy = cur.execute("SELECT street, postcode FROM dummy").fetchall()
+        result_dummy_rb = cur.execute("SELECT street, postcode FROM dummy_rb").fetchall()
         all_tables = [r[0] for r in
                       cur.execute("SELECT name FROM sqlite_master").fetchall()]
 
@@ -75,8 +75,8 @@ class TestDatabaseMethods(unittest.TestCase):
 
         output = d.insert_value("dummy", "3 House St", "A01", cur, self.con)
         self.assertEqual(output, "Inserted values (3 House St, A01) into dummy")
-        result_dummy = cur.execute("SELECT * FROM dummy").fetchall()
-        result_dummy_rb = cur.execute("SELECT * FROM dummy_rb").fetchall()
+        result_dummy = cur.execute("SELECT street, postcode FROM dummy").fetchall()
+        result_dummy_rb = cur.execute("SELECT street, postcode FROM dummy_rb").fetchall()
         all_tables = [r[0] for r in
                       cur.execute("SELECT name FROM sqlite_master").fetchall()]
 
@@ -85,8 +85,11 @@ class TestDatabaseMethods(unittest.TestCase):
         self.assertListEqual(result_dummy_rb, [("1 House St", "A01"), ("2 House St", "A01")])
         self.assertListEqual(all_tables, ["dummy", "dummy_rb"])
 
+        self.assertEqual(d.insert_value("dummy", "3 House St", "A01", cur, self.con),
+                         "Street and postcode already in database")
+
         cur.close()
-    
+
     def test_delete_value(self):
         """test delete_value value deletion and sanitation"""
 
@@ -94,7 +97,7 @@ class TestDatabaseMethods(unittest.TestCase):
         cur.execute("DROP TABLE IF EXISTS dummy;")
 
         d.create_table("dummy", cur, self.con)
-        FORBIDDEN_CHAR = [";", '"',]
+        FORBIDDEN_CHAR = [";", '"', "'"]
 
         d.insert_value("dummy", "1 House St", "A01", cur, self.con)
         d.insert_value("dummy", "2 House St", "A01", cur, self.con)
@@ -107,14 +110,14 @@ class TestDatabaseMethods(unittest.TestCase):
                                             cur, self.con), f"Forbidden character {char} in input")
             self.assertEqual(d.delete_value("dummy", f"{char}street", f"{char}postcode",
                                             cur, self.con), f"Forbidden character {char} in input")
-        
+
         self.assertEqual(d.delete_value("dummy", "4 House St", "A01", cur, self.con),
                          "Street and postcode not found in database")
-        
+
         output = d.delete_value("dummy", "3 House St", "A01", cur, self.con)
         self.assertEqual(output, "Deleted values (3 House St, A01) from dummy")
-        result_dummy = cur.execute("SELECT * FROM dummy").fetchall()
-        result_dummy_rb = cur.execute("SELECT * FROM dummy_rb").fetchall()
+        result_dummy = cur.execute("SELECT street, postcode FROM dummy").fetchall()
+        result_dummy_rb = cur.execute("SELECT street, postcode FROM dummy_rb").fetchall()
         all_tables = [r[0] for r in
                       cur.execute("SELECT name FROM sqlite_master").fetchall()]
 
@@ -125,8 +128,8 @@ class TestDatabaseMethods(unittest.TestCase):
 
         output = d.delete_value("dummy", "2 House St", "A01", cur, self.con)
         self.assertEqual(output, "Deleted values (2 House St, A01) from dummy")
-        result_dummy = cur.execute("SELECT * FROM dummy").fetchall()
-        result_dummy_rb = cur.execute("SELECT * FROM dummy_rb").fetchall()
+        result_dummy = cur.execute("SELECT street, postcode FROM dummy").fetchall()
+        result_dummy_rb = cur.execute("SELECT street, postcode FROM dummy_rb").fetchall()
         all_tables = [r[0] for r in
                       cur.execute("SELECT name FROM sqlite_master").fetchall()]
 
@@ -136,8 +139,8 @@ class TestDatabaseMethods(unittest.TestCase):
 
         output = d.delete_value("dummy", "1 House St", "A01", cur, self.con)
         self.assertEqual(output, "Deleted values (1 House St, A01) from dummy")
-        result_dummy = cur.execute("SELECT * FROM dummy").fetchall()
-        result_dummy_rb = cur.execute("SELECT * FROM dummy_rb").fetchall()
+        result_dummy = cur.execute("SELECT street, postcode FROM dummy").fetchall()
+        result_dummy_rb = cur.execute("SELECT street, postcode FROM dummy_rb").fetchall()
         all_tables = [r[0] for r in
                       cur.execute("SELECT name FROM sqlite_master").fetchall()]
 
@@ -146,6 +149,32 @@ class TestDatabaseMethods(unittest.TestCase):
         self.assertListEqual(all_tables, ["dummy", "dummy_rb"])
 
         cur.close()
+
+    def test_delete_table(self):
+        """Test delete_table table deletion and sanitation"""
+
+        cur = self.con.cursor()
+        regex_fail_list = ["!", '"', "£", "$", "%", "^", "&", "*", "(", ")", "-", "+","=",
+                           "{", "}", "[", "]", "~", "#", ":", ";", "@", "'", "<", ",",
+                           ">", ".", "?", "/", "|", "¬", "`",]
+
+        rb_fail = "table_rb"
+        self.assertEqual(d.delete_table(rb_fail, cur, self.con), "Cannot have _rb in table name")
+
+        for char in regex_fail_list:
+            self.assertEqual(d.delete_table("table"+char, cur, self.con),
+            "Invalid table name. Please ensure only letters, numbers and underscores are used")
+
+        self.assertEqual(d.delete_table("blank", cur, self.con), "Table blank does not exist")
+
+        d.create_table("dummy", cur, self.con)
+        #making sure we have a _rb
+        d.insert_value("dummy", "3 House St", "A01", cur, self.con)
+
+        self.assertEqual(d.delete_table("dummy", cur, self.con), "Table dummy and its rollback deleted")
+
+        all_table = [t[0] for t in cur.execute("SELECT name FROM sqlite_master").fetchall()]
+        self.assertEqual(len(all_table), 0)
 
     def tearDown(self):
         """double check dummy table wiped"""
