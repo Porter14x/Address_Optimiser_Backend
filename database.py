@@ -6,6 +6,8 @@ import re
 
 
 def forbidden_char_check(street, postcode):
+    """checks street and postcode vals for any established forbidden characters
+    return a (False, char) tuple if one is detected, (True, None) otherwise"""
     FORBIDDEN_CHAR = [";", '"', "'",] # list of chars that should never appear in inputs
 
     for char in FORBIDDEN_CHAR:
@@ -15,6 +17,7 @@ def forbidden_char_check(street, postcode):
     return (True, None)
 
 def rb_helper(table, cur):
+    """creates/overwrites the rollback for the table being modified"""
     all_table = [t[0] for t in cur.execute("SELECT name FROM sqlite_master").fetchall()]
 
     rb = f"{table}_rb"
@@ -26,8 +29,6 @@ def rb_helper(table, cur):
         cur.execute(sql_rb)
     else:
         cur.execute(sql_rb)
-
-    return
 
 def create_table(table, cur, con):
     """Create a table with the passed name if it doesn't exist"""
@@ -51,7 +52,8 @@ def insert_value(table, street, postcode, cur, con):
     """Insert street and postcode values into desired table"""
 
     valid = forbidden_char_check(street, postcode)
-    if valid[0]==False: return f"Forbidden character {valid[1]} in input"
+    if valid[0] is False:
+        return f"Forbidden character {valid[1]} in input"
 
     sql_search = f"SELECT street, postcode FROM {table} WHERE street=? AND postcode=?;"
     result = [r[0] for r in cur.execute(sql_search, (street, postcode)).fetchall()]
@@ -69,7 +71,8 @@ def delete_value(table, street, postcode, cur, con):
     """delete street and postcode value from desired table"""
 
     valid = forbidden_char_check(street, postcode)
-    if valid[0]==False: return f"Forbidden character {valid[1]} in input"
+    if valid[0] is False:
+        return f"Forbidden character {valid[1]} in input"
 
     sql_search = f"SELECT street, postcode FROM {table} WHERE street=? AND postcode=?;"
     result = [r[0] for r in cur.execute(sql_search, (street, postcode)).fetchall()]
@@ -95,7 +98,7 @@ def delete_table(table, cur, con):
 
     if table not in [table[0] for table in cur.execute("SELECT name FROM sqlite_master").fetchall()]:
         return f"Table {table} does not exist"
-    
+
     sql_drop = f"DROP TABLE {table};"
     sql_drop_rb = f"DROP TABLE {table}_rb;"
 

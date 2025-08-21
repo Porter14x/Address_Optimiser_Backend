@@ -8,6 +8,10 @@ class TestDatabaseMethods(unittest.TestCase):
     """Class for testing the functions of database.py"""
 
     con = sqlite3.connect("test.db")
+    FORBIDDEN_CHAR = [";", '"', "'"]
+    regex_fail_list = ["!", '"', "£", "$", "%", "^", "&", "*", "(", ")", "-", "+","=",
+                           "{", "}", "[", "]", "~", "#", ":", ";", "@", "'", "<", ",",
+                           ">", ".", "?", "/", "|", "¬", "`",]
 
     def setUp(self):
         """ensure dummy table is wiped"""
@@ -19,14 +23,11 @@ class TestDatabaseMethods(unittest.TestCase):
     def test_create_table(self):
         """test create_table table creation and sanitation"""
         cur = self.con.cursor()
-        regex_fail_list = ["!", '"', "£", "$", "%", "^", "&", "*", "(", ")", "-", "+","=",
-                           "{", "}", "[", "]", "~", "#", ":", ";", "@", "'", "<", ",",
-                           ">", ".", "?", "/", "|", "¬", "`",]
 
         rb_fail = "table_rb"
         self.assertEqual(d.create_table(rb_fail, cur, self.con), "Cannot have _rb in table name")
 
-        for char in regex_fail_list:
+        for char in self.regex_fail_list:
             self.assertEqual(d.create_table("table"+char, cur, self.con),
             "Invalid table name. Please ensure only letters, numbers and underscores are used")
 
@@ -42,8 +43,7 @@ class TestDatabaseMethods(unittest.TestCase):
 
         d.create_table("dummy", cur, self.con)
 
-        FORBIDDEN_CHAR = [";", '"', "'",]
-        for char in FORBIDDEN_CHAR:
+        for char in self.FORBIDDEN_CHAR:
             self.assertEqual(d.insert_value("dummy", "street", f"{char}postcode",
                                             cur, self.con), f"Forbidden character {char} in input")
             self.assertEqual(d.insert_value("dummy", f"{char}street", "postcode",
@@ -97,13 +97,12 @@ class TestDatabaseMethods(unittest.TestCase):
         cur.execute("DROP TABLE IF EXISTS dummy;")
 
         d.create_table("dummy", cur, self.con)
-        FORBIDDEN_CHAR = [";", '"', "'"]
 
         d.insert_value("dummy", "1 House St", "A01", cur, self.con)
         d.insert_value("dummy", "2 House St", "A01", cur, self.con)
         d.insert_value("dummy", "3 House St", "A01", cur, self.con)
 
-        for char in FORBIDDEN_CHAR:
+        for char in self.FORBIDDEN_CHAR:
             self.assertEqual(d.delete_value("dummy", "street", f"{char}postcode",
                                             cur, self.con), f"Forbidden character {char} in input")
             self.assertEqual(d.delete_value("dummy", f"{char}street", "postcode",
@@ -154,14 +153,11 @@ class TestDatabaseMethods(unittest.TestCase):
         """Test delete_table table deletion and sanitation"""
 
         cur = self.con.cursor()
-        regex_fail_list = ["!", '"', "£", "$", "%", "^", "&", "*", "(", ")", "-", "+","=",
-                           "{", "}", "[", "]", "~", "#", ":", ";", "@", "'", "<", ",",
-                           ">", ".", "?", "/", "|", "¬", "`",]
 
         rb_fail = "table_rb"
         self.assertEqual(d.delete_table(rb_fail, cur, self.con), "Cannot have _rb in table name")
 
-        for char in regex_fail_list:
+        for char in self.regex_fail_list:
             self.assertEqual(d.delete_table("table"+char, cur, self.con),
             "Invalid table name. Please ensure only letters, numbers and underscores are used")
 
