@@ -16,30 +16,44 @@ class TestDatabaseMethods(unittest.TestCase):
     def setUp(self):
         """ensure dummy table is wiped"""
         cur = self.con.cursor()
-        cur.execute("DROP TABLE IF EXISTS dummy;")
+        cur.executescript("DROP TABLE IF EXISTS dummy; DROP TABLE IF EXISTS dummy_rb")
         cur.close()
         return super().setUp()
+    
+    def test_table_verification(self):
+        rb_fail = "table_rb"
+        self.assertEqual(d.table_verification(rb_fail)[1], "Cannot have _rb in table name")
+
+        for char in self.regex_fail_list:
+            self.assertEqual(d.table_verification("table"+char)[1],
+            "Invalid table name. Please ensure only letters, numbers and underscores are used")
+    
+    def test_forbidden_char_check(self):
+        for char in self.FORBIDDEN_CHAR:
+            self.assertEqual(d.forbidden_char_check("street", f"{char}postcode")[1],
+                             f"Forbidden character {char} in input")
+            self.assertEqual(d.forbidden_char_check(f"{char}street", f"postcode")[1],
+                             f"Forbidden character {char} in input")
+            self.assertEqual(d.forbidden_char_check(f"{char}street", f"{char}postcode")[1],
+                             f"Forbidden character {char} in input")
 
     def test_create_table(self):
         """test create_table table creation and sanitation"""
         cur = self.con.cursor()
-
-        rb_fail = "table_rb"
-        self.assertEqual(d.create_table(rb_fail, cur, self.con), "Cannot have _rb in table name")
-
-        for char in self.regex_fail_list:
-            self.assertEqual(d.create_table("table"+char, cur, self.con),
-            "Invalid table name. Please ensure only letters, numbers and underscores are used")
+        cur.executescript("DROP TABLE IF EXISTS dummy; DROP TABLE IF EXISTS dummy_rb")
 
         d.create_table("dummy", cur, self.con)
         self.assertEqual(d.create_table("dummy", cur, self.con), "Table dummy already exists")
+
+        self.assertTrue("dummy" in 
+                        [r[0] for r in cur.execute("SELECT name FROM sqlite_master").fetchall()])
 
         cur.close()
 
     def test_insert_value(self):
         """test insert_table value insertion and sanitation"""
         cur = self.con.cursor()
-        cur.execute("DROP TABLE IF EXISTS dummy;")
+        cur.executescript("DROP TABLE IF EXISTS dummy; DROP TABLE IF EXISTS dummy_rb")
 
         d.create_table("dummy", cur, self.con)
 
@@ -94,21 +108,13 @@ class TestDatabaseMethods(unittest.TestCase):
         """test delete_value value deletion and sanitation"""
 
         cur = self.con.cursor()
-        cur.execute("DROP TABLE IF EXISTS dummy;")
+        cur.executescript("DROP TABLE IF EXISTS dummy; DROP TABLE IF EXISTS dummy_rb")
 
         d.create_table("dummy", cur, self.con)
 
         d.insert_value("dummy", "1 House St", "A01", cur, self.con)
         d.insert_value("dummy", "2 House St", "A01", cur, self.con)
         d.insert_value("dummy", "3 House St", "A01", cur, self.con)
-
-        for char in self.FORBIDDEN_CHAR:
-            self.assertEqual(d.delete_value("dummy", "street", f"{char}postcode",
-                                            cur, self.con), f"Forbidden character {char} in input")
-            self.assertEqual(d.delete_value("dummy", f"{char}street", "postcode",
-                                            cur, self.con), f"Forbidden character {char} in input")
-            self.assertEqual(d.delete_value("dummy", f"{char}street", f"{char}postcode",
-                                            cur, self.con), f"Forbidden character {char} in input")
 
         self.assertEqual(d.delete_value("dummy", "4 House St", "A01", cur, self.con),
                          "Street and postcode not found in database")
@@ -153,13 +159,7 @@ class TestDatabaseMethods(unittest.TestCase):
         """Test delete_table table deletion and sanitation"""
 
         cur = self.con.cursor()
-
-        rb_fail = "table_rb"
-        self.assertEqual(d.delete_table(rb_fail, cur, self.con), "Cannot have _rb in table name")
-
-        for char in self.regex_fail_list:
-            self.assertEqual(d.delete_table("table"+char, cur, self.con),
-            "Invalid table name. Please ensure only letters, numbers and underscores are used")
+        cur.executescript("DROP TABLE IF EXISTS dummy; DROP TABLE IF EXISTS dummy_rb")
 
         self.assertEqual(d.delete_table("blank", cur, self.con), "Table blank does not exist")
 
@@ -171,6 +171,28 @@ class TestDatabaseMethods(unittest.TestCase):
 
         all_table = [t[0] for t in cur.execute("SELECT name FROM sqlite_master").fetchall()]
         self.assertEqual(len(all_table), 0)
+
+        cur.close()
+    
+    def test_rollback_table(self):
+        """test rollback_table reverts to the table_rb"""
+
+        cur = self.con.cursor()
+        cur.executescript("DROP TABLE IF EXISTS dummy; DROP TABLE IF EXISTS dummy_rb")
+
+        self.assertEqual(d.rollback_table("blank", cur, self.con), "Table blank does not exist")
+        d.create_table("dummy", cur, self.con)
+        self.assertEqual(d.rollback_table("dummy", cur, self.con), "No rollback for dummy")
+
+        d.insert_value("dummy", "1 House St", "A01", cur, self.con)
+        self.assertEqual(d.rollback_table("dummy", cur, self.con), "Table dummy has been rolled back")
+        all_table = [t[0] for t in cur.execute("SELECT name FROM sqlite_master").fetchall()]
+        self.assertTrue("dummy_rb" not in all_table)
+        self.assertTrue("dummy" in all_table)
+        result_dummy = cur.execute("SELECT street, postcode FROM dummy").fetchall()
+        self.assertEqual(len(result_dummy), 0)
+
+        cur.close()
 
     def tearDown(self):
         """double check dummy table wiped"""

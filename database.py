@@ -12,7 +12,7 @@ def forbidden_char_check(street, postcode):
 
     for char in FORBIDDEN_CHAR:
         if char in street or char in postcode:
-            return (False, char)
+            return (False, f"Forbidden character {char} in input")
 
     return (True, None)
 
@@ -30,17 +30,26 @@ def rb_helper(table, cur):
     else:
         cur.execute(sql_rb)
 
-def create_table(table, cur, con):
-    """Create a table with the passed name if it doesn't exist"""
+def table_verification(table):
+    """verify inputted table is correctly formatted"""
 
     #ensure only letters, nums & underscores are in table name eg no space for 'DROP TABLE'
     if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", table):
-        return "Invalid table name. Please ensure only letters, numbers and underscores are used"
+        return (False, "Invalid table name. Please ensure only letters, numbers and underscores are used")
 
     if "_rb" in table:
-        return "Cannot have _rb in table name"
+        return (False, "Cannot have _rb in table name")
 
-    if table in [table[0] for table in cur.execute("SELECT name FROM sqlite_master").fetchall()]:
+    return (True, None)
+
+def create_table(table, cur, con):
+    """Create a table with the passed name if it doesn't exist"""
+
+    valid = table_verification(table)
+    if valid[0] is False:
+        return valid[1]
+    
+    if table in [t[0] for t in cur.execute("SELECT name FROM sqlite_master").fetchall()]:
         return f"Table {table} already exists"
 
     creation = f"CREATE TABLE {table}(id INTEGER PRIMARY KEY, street VARCHAR(255), postcode VARCHAR(10))"
@@ -53,7 +62,7 @@ def insert_value(table, street, postcode, cur, con):
 
     valid = forbidden_char_check(street, postcode)
     if valid[0] is False:
-        return f"Forbidden character {valid[1]} in input"
+        return valid[1]
 
     sql_search = f"SELECT street, postcode FROM {table} WHERE street=? AND postcode=?;"
     result = [r[0] for r in cur.execute(sql_search, (street, postcode)).fetchall()]
@@ -89,12 +98,9 @@ def delete_value(table, street, postcode, cur, con):
 def delete_table(table, cur, con):
     """Fully delete a table and its rollback - irreversible"""
 
-    #ensure only letters, nums & underscores are in table name eg no space for 'DROP TABLE'
-    if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", table):
-        return "Invalid table name. Please ensure only letters, numbers and underscores are used"
-
-    if "_rb" in table:
-        return "Cannot have _rb in table name"
+    valid = table_verification(table)
+    if valid[0] is False:
+        return valid[1]
 
     if table not in [table[0] for table in cur.execute("SELECT name FROM sqlite_master").fetchall()]:
         return f"Table {table} does not exist"
@@ -106,3 +112,27 @@ def delete_table(table, cur, con):
     cur.execute(sql_drop_rb)
     con.commit()
     return f"Table {table} and its rollback deleted"
+
+def rollback_table(table, cur, con):
+    """revert a table to its table_rb - original table is dropped"""
+
+    valid = table_verification(table)
+    if valid[0] is False:
+        return valid[1]
+
+    all_table = [table[0] for table in cur.execute("SELECT name FROM sqlite_master").fetchall()]
+
+    if table not in all_table:
+        return f"Table {table} does not exist"
+    elif f"{table}_rb" not in all_table:
+        return f"No rollback for {table}"
+
+    rb = f"{table}_rb"
+    sql_rollback = f"""
+    DROP TABLE {table};
+    CREATE TABLE {table} AS SELECT * FROM {rb};
+    DROP TABLE {rb};
+    """
+    cur.executescript(sql_rollback)
+    con.commit()
+    return f"Table {table} has been rolled back"
