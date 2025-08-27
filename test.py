@@ -2,9 +2,54 @@
 
 import unittest
 import sqlite3
+from unittest.mock import patch
 import database as d
+from main import app, DB_PATH
 
-class TestDatabaseMethods(unittest.TestCase):
+class MainTestCase(unittest.TestCase):
+    """Class for testing functions of main.py"""
+
+    con = sqlite3.connect("test.db")
+
+    def setUp(self):
+        # Create a test client
+        self.app = app.test_client()
+        self.app.testing = True
+
+        #want database with vals to test the insertion/deletion + optimisation operations
+        cur = self.con.cursor()
+        d.create_table("dummy", cur, self.con)
+        d.insert_value("dummy", "2 House St", "A01", cur, self.con)
+        d.insert_value("dummy", "3 House St", "A01", cur, self.con)
+        cur.close()
+
+    @patch("main.optimise_addresses")
+    @patch("main.DB_PATH", "test.db")
+    def test_insert_value_success(self, mock_opt):
+        #lat and lon arent used so val doesnt matter
+        mock_opt_json = [
+            {"lat": 0, "lon": 0, "original_index": 2}, #1 House St
+            {"lat": 0, "lon": 0, "original_index": 0}, #2 House St
+            {"lat": 0, "lon": 0, "original_index": 1}, #3 House St
+        ]
+        mock_opt.return_value = mock_opt_json
+
+        response = self.app.post("/insert_value", json={"table": "dummy", "address": ("1 House St", "A01")})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.text, "Inserted values (1 House St, A01) into dummy")
+
+        cur = self.con.cursor()
+        all_tables = [r[0] for r in
+                      cur.execute("SELECT name FROM sqlite_master").fetchall()]
+        self.assertTrue("dummy" in all_tables)
+        self.assertTrue("dummy_rb" in all_tables)
+        result_dummy = cur.execute("SELECT street, postcode FROM dummy").fetchall()
+        result_dummy_rb = cur.execute("SELECT street, postcode FROM dummy_rb").fetchall()
+        self.assertListEqual(result_dummy_rb, [("2 House St", "A01"), ("3 House St", "A01")])
+        self.assertListEqual(result_dummy, [("1 House St", "A01"), ("2 House St", "A01"),
+                                            ("3 House St", "A01")])
+
+class DatabaseTestCase(unittest.TestCase):
     """Class for testing the functions of database.py"""
 
     con = sqlite3.connect("test.db")
@@ -56,6 +101,7 @@ class TestDatabaseMethods(unittest.TestCase):
         cur.executescript("DROP TABLE IF EXISTS dummy; DROP TABLE IF EXISTS dummy_rb")
 
         d.create_table("dummy", cur, self.con)
+        d.rb_helper("dummy", cur)
 
         for char in self.FORBIDDEN_CHAR:
             self.assertEqual(d.insert_value("dummy", "street", f"{char}postcode",
@@ -76,6 +122,7 @@ class TestDatabaseMethods(unittest.TestCase):
         self.assertListEqual(result_dummy_rb, [])
         self.assertListEqual(all_tables, ["dummy", "dummy_rb"])
 
+        d.rb_helper("dummy", cur)
         output = d.insert_value("dummy", "2 House St", "A01", cur, self.con)
         self.assertEqual(output, "Inserted values (2 House St, A01) into dummy")
         result_dummy = cur.execute("SELECT street, postcode FROM dummy").fetchall()
@@ -87,6 +134,7 @@ class TestDatabaseMethods(unittest.TestCase):
         self.assertListEqual(result_dummy_rb, [("1 House St", "A01")])
         self.assertListEqual(all_tables, ["dummy", "dummy_rb"])
 
+        d.rb_helper("dummy", cur)
         output = d.insert_value("dummy", "3 House St", "A01", cur, self.con)
         self.assertEqual(output, "Inserted values (3 House St, A01) into dummy")
         result_dummy = cur.execute("SELECT street, postcode FROM dummy").fetchall()
@@ -119,6 +167,7 @@ class TestDatabaseMethods(unittest.TestCase):
         self.assertEqual(d.delete_value("dummy", "4 House St", "A01", cur, self.con),
                          "Street and postcode not found in database")
 
+        d.rb_helper("dummy", cur)
         output = d.delete_value("dummy", "3 House St", "A01", cur, self.con)
         self.assertEqual(output, "Deleted values (3 House St, A01) from dummy")
         result_dummy = cur.execute("SELECT street, postcode FROM dummy").fetchall()
@@ -131,6 +180,7 @@ class TestDatabaseMethods(unittest.TestCase):
                                                ("3 House St", "A01")])
         self.assertListEqual(all_tables, ["dummy", "dummy_rb"])
 
+        d.rb_helper("dummy", cur)
         output = d.delete_value("dummy", "2 House St", "A01", cur, self.con)
         self.assertEqual(output, "Deleted values (2 House St, A01) from dummy")
         result_dummy = cur.execute("SELECT street, postcode FROM dummy").fetchall()
@@ -142,6 +192,7 @@ class TestDatabaseMethods(unittest.TestCase):
         self.assertListEqual(result_dummy_rb, [("1 House St", "A01"), ("2 House St", "A01")])
         self.assertListEqual(all_tables, ["dummy", "dummy_rb"])
 
+        d.rb_helper("dummy", cur)
         output = d.delete_value("dummy", "1 House St", "A01", cur, self.con)
         self.assertEqual(output, "Deleted values (1 House St, A01) from dummy")
         result_dummy = cur.execute("SELECT street, postcode FROM dummy").fetchall()
@@ -166,6 +217,7 @@ class TestDatabaseMethods(unittest.TestCase):
         d.create_table("dummy", cur, self.con)
         #making sure we have a _rb
         d.insert_value("dummy", "3 House St", "A01", cur, self.con)
+        d.rb_helper("dummy", cur)
 
         self.assertEqual(d.delete_table("dummy", cur, self.con), "Table dummy and its rollback deleted")
 
@@ -184,6 +236,7 @@ class TestDatabaseMethods(unittest.TestCase):
         d.create_table("dummy", cur, self.con)
         self.assertEqual(d.rollback_table("dummy", cur, self.con), "No rollback for dummy")
 
+        d.rb_helper("dummy", cur)
         d.insert_value("dummy", "1 House St", "A01", cur, self.con)
         self.assertEqual(d.rollback_table("dummy", cur, self.con), "Table dummy has been rolled back")
         all_table = [t[0] for t in cur.execute("SELECT name FROM sqlite_master").fetchall()]

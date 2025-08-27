@@ -52,7 +52,7 @@ def create_table(table, cur, con):
     if table in [t[0] for t in cur.execute("SELECT name FROM sqlite_master").fetchall()]:
         return f"Table {table} already exists"
 
-    creation = f"CREATE TABLE {table}(id INTEGER PRIMARY KEY, street VARCHAR(255), postcode VARCHAR(10))"
+    creation = f"CREATE TABLE {table}(id INTEGER PRIMARY KEY, street VARCHAR(255), postcode VARCHAR(10));"
     cur.execute(creation)
     con.commit()
     return f"Table {table} created"
@@ -68,8 +68,6 @@ def insert_value(table, street, postcode, cur, con):
     result = [r[0] for r in cur.execute(sql_search, (street, postcode)).fetchall()]
     if len(result) > 0:
         return "Street and postcode already in database"
-
-    rb_helper(table, cur)
 
     sql_in = f"INSERT INTO {table} (street, postcode) VALUES (?, ?)"
     cur.execute(sql_in, (street, postcode))
@@ -87,8 +85,6 @@ def delete_value(table, street, postcode, cur, con):
     result = [r[0] for r in cur.execute(sql_search, (street, postcode)).fetchall()]
     if result == []:
         return "Street and postcode not found in database"
-
-    rb_helper(table, cur)
 
     sql_del = f"DELETE FROM {table} WHERE street=? AND postcode=?;"
     cur.execute(sql_del, (street, postcode))
@@ -136,3 +132,24 @@ def rollback_table(table, cur, con):
     cur.executescript(sql_rollback)
     con.commit()
     return f"Table {table} has been rolled back"
+
+def select_all(table, cur):
+    """get all (street, postcode) used when re-optimising table after deletion/insertion"""
+    sql_select = f"SELECT street, postcode FROM {table}"
+    output = cur.execute(sql_select).fetchall()
+
+    #output will look like [("1 House St", "A01"), ("2 House St", "A01"), ...]
+    return output
+
+def table_optimisation_update(table, new_add_order, cur):
+    """Update the table to reflect the new optimisation order in new_add_order"""
+
+    #make sure we have fresh table to insert into
+    sql_setup = f"""
+    DROP TABLE {table};
+    CREATE TABLE {table}(id INTEGER PRIMARY KEY, street VARCHAR(255), postcode VARCHAR(10));
+    """
+    cur.executescript(sql_setup)
+
+    for add in new_add_order:
+        cur.execute(f"INSERT INTO {table} (street, postcode) VALUES (?, ?);", (add[0], add[1]))
