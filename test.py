@@ -10,6 +10,7 @@ class MainTestCase(unittest.TestCase):
     """Class for testing functions of main.py"""
 
     con = sqlite3.connect("test.db")
+    FORBIDDEN_CHAR = [";", '"', "'"]
 
     def setUp(self):
         # Create a test client
@@ -26,6 +27,8 @@ class MainTestCase(unittest.TestCase):
     @patch("main.optimise_addresses")
     @patch("main.DB_PATH", "test.db")
     def test_insert_value_success(self, mock_opt):
+        """test handling an insert address request, ensure it
+        optimises the addresses correctly and ensure the _rb is before insert+optimise"""
         #lat and lon arent used so val doesnt matter
         mock_opt_json = [
             {"lat": 0, "lon": 0, "original_index": 2}, #1 House St
@@ -48,6 +51,23 @@ class MainTestCase(unittest.TestCase):
         self.assertListEqual(result_dummy_rb, [("2 House St", "A01"), ("3 House St", "A01")])
         self.assertListEqual(result_dummy, [("1 House St", "A01"), ("2 House St", "A01"),
                                             ("3 House St", "A01")])
+
+    #no patch for optimise_address since a fail case shouldn't get that far
+    @patch("main.DB_PATH", "test.db")
+    def test_insert_value_fail(self):
+        """handle an request fail case and ensure the error msgs are returned as expected"""
+
+        for char in self.FORBIDDEN_CHAR:
+            response0 = self.app.post("/insert_value",
+            json={"table": "dummy","address": ("1 House St", f"{char}A01")})
+            response1 = self.app.post("/insert_value",
+            json={"table": "dummy", "address": (f"{char}1 House St", "A01")})
+            response2 = self.app.post("/insert_value",
+            json={"table": "dummy", "address": (f"{char}1 House St", f"{char}A01")})
+
+            self.assertEqual(response0.text, f"Forbidden character {char} in input")
+            self.assertEqual(response1.text, f"Forbidden character {char} in input")
+            self.assertEqual(response2.text, f"Forbidden character {char} in input")
 
 class DatabaseTestCase(unittest.TestCase):
     """Class for testing the functions of database.py"""
@@ -82,7 +102,7 @@ class DatabaseTestCase(unittest.TestCase):
             self.assertEqual(d.forbidden_char_check(f"{char}street", f"{char}postcode")[1],
                              f"Forbidden character {char} in input")
 
-    def test_create_table(self):
+    def test_create_table_success(self):
         """test create_table table creation and sanitation"""
         cur = self.con.cursor()
         cur.executescript("DROP TABLE IF EXISTS dummy; DROP TABLE IF EXISTS dummy_rb")
@@ -95,21 +115,23 @@ class DatabaseTestCase(unittest.TestCase):
 
         cur.close()
 
-    def test_insert_value(self):
+    def test_create_table_fail(self):
+        """test fail cases for create_table - see test_table_verification for regex check"""
+        cur = self.con.cursor()
+        cur.executescript("DROP TABLE IF EXISTS dummy; DROP TABLE IF EXISTS dummy_rb")
+
+        d.create_table("dummy", cur, self.con)
+        self.assertEqual(d.create_table("dummy", cur, self.con), "Table dummy already exists")
+
+        cur.close()
+
+    def test_insert_value_success(self):
         """test insert_table value insertion and sanitation"""
         cur = self.con.cursor()
         cur.executescript("DROP TABLE IF EXISTS dummy; DROP TABLE IF EXISTS dummy_rb")
 
         d.create_table("dummy", cur, self.con)
         d.rb_helper("dummy", cur)
-
-        for char in self.FORBIDDEN_CHAR:
-            self.assertEqual(d.insert_value("dummy", "street", f"{char}postcode",
-                                            cur, self.con), f"Forbidden character {char} in input")
-            self.assertEqual(d.insert_value("dummy", f"{char}street", "postcode",
-                                            cur, self.con), f"Forbidden character {char} in input")
-            self.assertEqual(d.insert_value("dummy", f"{char}street", f"{char}postcode",
-                                            cur, self.con), f"Forbidden character {char} in input")
 
         output = d.insert_value("dummy", "1 House St", "A01", cur, self.con)
         self.assertEqual(output, "Inserted values (1 House St, A01) into dummy")
@@ -147,12 +169,31 @@ class DatabaseTestCase(unittest.TestCase):
         self.assertListEqual(result_dummy_rb, [("1 House St", "A01"), ("2 House St", "A01")])
         self.assertListEqual(all_tables, ["dummy", "dummy_rb"])
 
+        cur.close()
+
+    def test_insert_value_fail(self):
+        """test insert_value fail case handling"""
+        cur = self.con.cursor()
+        cur.executescript("DROP TABLE IF EXISTS dummy; DROP TABLE IF EXISTS dummy_rb")
+
+        d.create_table("dummy", cur, self.con)
+        d.rb_helper("dummy", cur)
+
+        for char in self.FORBIDDEN_CHAR:
+            self.assertEqual(d.insert_value("dummy", "street", f"{char}postcode",
+                                            cur, self.con), f"Forbidden character {char} in input")
+            self.assertEqual(d.insert_value("dummy", f"{char}street", "postcode",
+                                            cur, self.con), f"Forbidden character {char} in input")
+            self.assertEqual(d.insert_value("dummy", f"{char}street", f"{char}postcode",
+                                            cur, self.con), f"Forbidden character {char} in input")
+
+        d.insert_value("dummy", "3 House St", "A01", cur, self.con)
         self.assertEqual(d.insert_value("dummy", "3 House St", "A01", cur, self.con),
                          "Street and postcode already in database")
 
         cur.close()
 
-    def test_delete_value(self):
+    def test_delete_value_success(self):
         """test delete_value value deletion and sanitation"""
 
         cur = self.con.cursor()
@@ -160,12 +201,12 @@ class DatabaseTestCase(unittest.TestCase):
 
         d.create_table("dummy", cur, self.con)
 
+        d.rb_helper("dummy", cur)
         d.insert_value("dummy", "1 House St", "A01", cur, self.con)
+        d.rb_helper("dummy", cur)
         d.insert_value("dummy", "2 House St", "A01", cur, self.con)
+        d.rb_helper("dummy", cur)
         d.insert_value("dummy", "3 House St", "A01", cur, self.con)
-
-        self.assertEqual(d.delete_value("dummy", "4 House St", "A01", cur, self.con),
-                         "Street and postcode not found in database")
 
         d.rb_helper("dummy", cur)
         output = d.delete_value("dummy", "3 House St", "A01", cur, self.con)
@@ -206,18 +247,36 @@ class DatabaseTestCase(unittest.TestCase):
 
         cur.close()
 
-    def test_delete_table(self):
+    def test_delete_value_fail(self):
+        """test delete_value failcases"""
+
+        cur = self.con.cursor()
+        cur.executescript("DROP TABLE IF EXISTS dummy; DROP TABLE IF EXISTS dummy_rb")
+
+        d.create_table("dummy", cur, self.con)
+
+        d.rb_helper("dummy", cur)
+        d.insert_value("dummy", "1 House St", "A01", cur, self.con)
+        d.rb_helper("dummy", cur)
+        d.insert_value("dummy", "2 House St", "A01", cur, self.con)
+        d.rb_helper("dummy", cur)
+        d.insert_value("dummy", "3 House St", "A01", cur, self.con)
+
+        self.assertEqual(d.delete_value("dummy", "4 House St", "A01", cur, self.con),
+                         "Street and postcode not found in database")
+
+        cur.close()
+
+    def test_delete_table_success(self):
         """Test delete_table table deletion and sanitation"""
 
         cur = self.con.cursor()
         cur.executescript("DROP TABLE IF EXISTS dummy; DROP TABLE IF EXISTS dummy_rb")
 
-        self.assertEqual(d.delete_table("blank", cur, self.con), "Table blank does not exist")
-
         d.create_table("dummy", cur, self.con)
         #making sure we have a _rb
-        d.insert_value("dummy", "3 House St", "A01", cur, self.con)
         d.rb_helper("dummy", cur)
+        d.insert_value("dummy", "3 House St", "A01", cur, self.con)
 
         self.assertEqual(d.delete_table("dummy", cur, self.con), "Table dummy and its rollback deleted")
 
@@ -225,16 +284,22 @@ class DatabaseTestCase(unittest.TestCase):
         self.assertEqual(len(all_table), 0)
 
         cur.close()
-    
-    def test_rollback_table(self):
-        """test rollback_table reverts to the table_rb"""
+
+    def test_delete_table_fail(self):
+        """test delete_table failcases"""
 
         cur = self.con.cursor()
         cur.executescript("DROP TABLE IF EXISTS dummy; DROP TABLE IF EXISTS dummy_rb")
 
-        self.assertEqual(d.rollback_table("blank", cur, self.con), "Table blank does not exist")
+        self.assertEqual(d.delete_table("blank", cur, self.con), "Table blank does not exist")
+
+        cur.close()
+    
+    def test_rollback_table_success(self):
+        """test rollback_table reverts to the table_rb"""
+
+        cur = self.con.cursor()
         d.create_table("dummy", cur, self.con)
-        self.assertEqual(d.rollback_table("dummy", cur, self.con), "No rollback for dummy")
 
         d.rb_helper("dummy", cur)
         d.insert_value("dummy", "1 House St", "A01", cur, self.con)
@@ -244,6 +309,18 @@ class DatabaseTestCase(unittest.TestCase):
         self.assertTrue("dummy" in all_table)
         result_dummy = cur.execute("SELECT street, postcode FROM dummy").fetchall()
         self.assertEqual(len(result_dummy), 0)
+
+        cur.close()
+
+    def test_rollback_table_fail(self):
+        """test rollback_table failcases"""
+
+        cur = self.con.cursor()
+        cur.executescript("DROP TABLE IF EXISTS dummy; DROP TABLE IF EXISTS dummy_rb")
+
+        self.assertEqual(d.rollback_table("blank", cur, self.con), "Table blank does not exist")
+        d.create_table("dummy", cur, self.con)
+        self.assertEqual(d.rollback_table("dummy", cur, self.con), "No rollback for dummy")
 
         cur.close()
 

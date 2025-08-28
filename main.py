@@ -75,6 +75,7 @@ def insert_value():
 
     if "Inserted values" not in msg:
         #something wrong with input return the error message so no work wasted
+        cur.close()
         return msg
 
     select_table = d.select_all(table, cur)
