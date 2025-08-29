@@ -129,6 +129,7 @@ class DatabaseTestCase(unittest.TestCase):
         return super().setUp()
     
     def test_table_verification(self):
+        """test tables are verified correctly"""
         rb_fail = "table_rb"
         self.assertEqual(d.table_verification(rb_fail)[1], "Cannot have _rb in table name")
 
@@ -137,6 +138,7 @@ class DatabaseTestCase(unittest.TestCase):
             "Invalid table name. Please ensure only letters, numbers and underscores are used")
     
     def test_forbidden_char_check(self):
+        """test forbidden chars are found"""
         for char in self.FORBIDDEN_CHAR:
             self.assertEqual(d.forbidden_char_check("street", f"{char}postcode")[1],
                              f"Forbidden character {char} in input")
@@ -174,10 +176,9 @@ class DatabaseTestCase(unittest.TestCase):
         cur.executescript("DROP TABLE IF EXISTS dummy; DROP TABLE IF EXISTS dummy_rb")
 
         d.create_table("dummy", cur, self.con)
-        d.rb_helper("dummy", cur)
 
         output = d.insert_value("dummy", "1 House St", "A01", cur, self.con)
-        self.assertEqual(output, "Inserted values (1 House St, A01) into dummy")
+        self.assertEqual(output[1], "Inserted values (1 House St, A01) into dummy")
         result_dummy = cur.execute("SELECT street, postcode FROM dummy").fetchall()
         result_dummy_rb = cur.execute("SELECT street, postcode FROM dummy_rb").fetchall()
         all_tables = [r[0] for r in
@@ -187,9 +188,8 @@ class DatabaseTestCase(unittest.TestCase):
         self.assertListEqual(result_dummy_rb, [])
         self.assertListEqual(all_tables, ["dummy", "dummy_rb"])
 
-        d.rb_helper("dummy", cur)
         output = d.insert_value("dummy", "2 House St", "A01", cur, self.con)
-        self.assertEqual(output, "Inserted values (2 House St, A01) into dummy")
+        self.assertEqual(output[1], "Inserted values (2 House St, A01) into dummy")
         result_dummy = cur.execute("SELECT street, postcode FROM dummy").fetchall()
         result_dummy_rb = cur.execute("SELECT street, postcode FROM dummy_rb").fetchall()
         all_tables = [r[0] for r in
@@ -199,9 +199,8 @@ class DatabaseTestCase(unittest.TestCase):
         self.assertListEqual(result_dummy_rb, [("1 House St", "A01")])
         self.assertListEqual(all_tables, ["dummy", "dummy_rb"])
 
-        d.rb_helper("dummy", cur)
         output = d.insert_value("dummy", "3 House St", "A01", cur, self.con)
-        self.assertEqual(output, "Inserted values (3 House St, A01) into dummy")
+        self.assertEqual(output[1], "Inserted values (3 House St, A01) into dummy")
         result_dummy = cur.execute("SELECT street, postcode FROM dummy").fetchall()
         result_dummy_rb = cur.execute("SELECT street, postcode FROM dummy_rb").fetchall()
         all_tables = [r[0] for r in
@@ -220,18 +219,17 @@ class DatabaseTestCase(unittest.TestCase):
         cur.executescript("DROP TABLE IF EXISTS dummy; DROP TABLE IF EXISTS dummy_rb")
 
         d.create_table("dummy", cur, self.con)
-        d.rb_helper("dummy", cur)
 
         for char in self.FORBIDDEN_CHAR:
             self.assertEqual(d.insert_value("dummy", "street", f"{char}postcode",
-                                            cur, self.con), f"Forbidden character {char} in input")
+                                            cur, self.con)[1], f"Forbidden character {char} in input")
             self.assertEqual(d.insert_value("dummy", f"{char}street", "postcode",
-                                            cur, self.con), f"Forbidden character {char} in input")
+                                            cur, self.con)[1], f"Forbidden character {char} in input")
             self.assertEqual(d.insert_value("dummy", f"{char}street", f"{char}postcode",
-                                            cur, self.con), f"Forbidden character {char} in input")
+                                            cur, self.con)[1], f"Forbidden character {char} in input")
 
         d.insert_value("dummy", "3 House St", "A01", cur, self.con)
-        self.assertEqual(d.insert_value("dummy", "3 House St", "A01", cur, self.con),
+        self.assertEqual(d.insert_value("dummy", "3 House St", "A01", cur, self.con)[1],
                          "Street and postcode already in database")
 
         cur.close()
@@ -243,17 +241,12 @@ class DatabaseTestCase(unittest.TestCase):
         cur.executescript("DROP TABLE IF EXISTS dummy; DROP TABLE IF EXISTS dummy_rb")
 
         d.create_table("dummy", cur, self.con)
-
-        d.rb_helper("dummy", cur)
         d.insert_value("dummy", "1 House St", "A01", cur, self.con)
-        d.rb_helper("dummy", cur)
         d.insert_value("dummy", "2 House St", "A01", cur, self.con)
-        d.rb_helper("dummy", cur)
         d.insert_value("dummy", "3 House St", "A01", cur, self.con)
 
-        d.rb_helper("dummy", cur)
         output = d.delete_value("dummy", "3 House St", "A01", cur, self.con)
-        self.assertEqual(output, "Deleted values (3 House St, A01) from dummy")
+        self.assertEqual(output[1], "Deleted values (3 House St, A01) from dummy")
         result_dummy = cur.execute("SELECT street, postcode FROM dummy").fetchall()
         result_dummy_rb = cur.execute("SELECT street, postcode FROM dummy_rb").fetchall()
         all_tables = [r[0] for r in
@@ -264,9 +257,8 @@ class DatabaseTestCase(unittest.TestCase):
                                                ("3 House St", "A01")])
         self.assertListEqual(all_tables, ["dummy", "dummy_rb"])
 
-        d.rb_helper("dummy", cur)
         output = d.delete_value("dummy", "2 House St", "A01", cur, self.con)
-        self.assertEqual(output, "Deleted values (2 House St, A01) from dummy")
+        self.assertEqual(output[1], "Deleted values (2 House St, A01) from dummy")
         result_dummy = cur.execute("SELECT street, postcode FROM dummy").fetchall()
         result_dummy_rb = cur.execute("SELECT street, postcode FROM dummy_rb").fetchall()
         all_tables = [r[0] for r in
@@ -276,9 +268,8 @@ class DatabaseTestCase(unittest.TestCase):
         self.assertListEqual(result_dummy_rb, [("1 House St", "A01"), ("2 House St", "A01")])
         self.assertListEqual(all_tables, ["dummy", "dummy_rb"])
 
-        d.rb_helper("dummy", cur)
         output = d.delete_value("dummy", "1 House St", "A01", cur, self.con)
-        self.assertEqual(output, "Deleted values (1 House St, A01) from dummy")
+        self.assertEqual(output[1], "Deleted values (1 House St, A01) from dummy")
         result_dummy = cur.execute("SELECT street, postcode FROM dummy").fetchall()
         result_dummy_rb = cur.execute("SELECT street, postcode FROM dummy_rb").fetchall()
         all_tables = [r[0] for r in
@@ -298,14 +289,11 @@ class DatabaseTestCase(unittest.TestCase):
 
         d.create_table("dummy", cur, self.con)
 
-        d.rb_helper("dummy", cur)
         d.insert_value("dummy", "1 House St", "A01", cur, self.con)
-        d.rb_helper("dummy", cur)
         d.insert_value("dummy", "2 House St", "A01", cur, self.con)
-        d.rb_helper("dummy", cur)
         d.insert_value("dummy", "3 House St", "A01", cur, self.con)
 
-        self.assertEqual(d.delete_value("dummy", "4 House St", "A01", cur, self.con),
+        self.assertEqual(d.delete_value("dummy", "4 House St", "A01", cur, self.con)[1],
                          "Street and postcode not found in database")
 
         cur.close()

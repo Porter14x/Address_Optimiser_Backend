@@ -73,13 +73,12 @@ def insert_value():
     request_data = request.get_json()
     table = request_data['table']
     address = request_data['address'] #(street, postcode)
-    d.rb_helper(table, cur)
-    msg = d.insert_value(table, address[0], address[1], cur, con)
+    valid = d.insert_value(table, address[0], address[1], cur, con)
 
-    if "Inserted values" not in msg:
+    if valid[0] is False:
         #something wrong with input return the error message so no work wasted
         cur.close()
-        return msg
+        return valid[1]
 
     select_table = d.select_all(table, cur)
     addresses = []
@@ -96,7 +95,7 @@ def insert_value():
     con.commit()
 
     cur.close()
-    return msg
+    return valid[1]
 
 if __name__=='__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

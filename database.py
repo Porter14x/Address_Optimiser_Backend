@@ -42,6 +42,34 @@ def table_verification(table):
 
     return (True, None)
 
+def verify_insert(table, street, postcode, cur):
+    """verify street and postcode isn't forbidden or duplicate"""
+
+    valid = forbidden_char_check(street, postcode)
+    if valid[0] is False:
+        return valid
+
+    sql_search = f"SELECT street, postcode FROM {table} WHERE street=? AND postcode=?;"
+    result = [r[0] for r in cur.execute(sql_search, (street, postcode)).fetchall()]
+    if len(result) > 0:
+        return (False, "Street and postcode already in database")
+    
+    return (True, None)
+
+def verify_delete(table, street, postcode, cur):
+    """verify street and postcode isn't forbidden or missing"""
+
+    valid = forbidden_char_check(street, postcode)
+    if valid[0] is False:
+        return valid
+
+    sql_search = f"SELECT street, postcode FROM {table} WHERE street=? AND postcode=?;"
+    result = [r[0] for r in cur.execute(sql_search, (street, postcode)).fetchall()]
+    if result == []:
+        return (False, "Street and postcode not found in database")
+    
+    return (True, None)
+
 def create_table(table, cur, con):
     """Create a table with the passed name if it doesn't exist"""
 
@@ -58,38 +86,30 @@ def create_table(table, cur, con):
     return f"Table {table} created"
 
 def insert_value(table, street, postcode, cur, con):
-    """Insert street and postcode values into desired table"""
+    """Insert street and postcode values into desired table, return status msg"""
 
-    valid = forbidden_char_check(street, postcode)
+    valid = verify_insert(table, street, postcode, cur)
     if valid[0] is False:
-        return valid[1]
-
-    sql_search = f"SELECT street, postcode FROM {table} WHERE street=? AND postcode=?;"
-    result = [r[0] for r in cur.execute(sql_search, (street, postcode)).fetchall()]
-    if len(result) > 0:
-        return "Street and postcode already in database"
+        return valid
+    rb_helper(table, cur)
 
     sql_in = f"INSERT INTO {table} (street, postcode) VALUES (?, ?)"
     cur.execute(sql_in, (street, postcode))
     con.commit()
-    return f"Inserted values ({street}, {postcode}) into {table}"
+    return (True, f"Inserted values ({street}, {postcode}) into {table}")
 
 def delete_value(table, street, postcode, cur, con):
     """delete street and postcode value from desired table"""
 
-    valid = forbidden_char_check(street, postcode)
+    valid = verify_delete(table, street, postcode, cur)
     if valid[0] is False:
-        return f"Forbidden character {valid[1]} in input"
-
-    sql_search = f"SELECT street, postcode FROM {table} WHERE street=? AND postcode=?;"
-    result = [r[0] for r in cur.execute(sql_search, (street, postcode)).fetchall()]
-    if result == []:
-        return "Street and postcode not found in database"
+        return valid
+    rb_helper(table, cur)
 
     sql_del = f"DELETE FROM {table} WHERE street=? AND postcode=?;"
     cur.execute(sql_del, (street, postcode))
     con.commit()
-    return f"Deleted values ({street}, {postcode}) from {table}"
+    return (True, f"Deleted values ({street}, {postcode}) from {table}")
 
 def delete_table(table, cur, con):
     """Fully delete a table and its rollback - irreversible"""
