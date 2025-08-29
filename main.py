@@ -39,7 +39,8 @@ def optimise_addresses(addresses=None):
 
 @app.route('/create_table', methods=["POST"])
 def create_table():
-    """Receive a string and see if a table in the db can be created"""
+    """Receive {"table": string} and see if a table in the db can be created
+    return a success/fail msg"""
     get_con()
     cur = con.cursor()
 
@@ -51,7 +52,8 @@ def create_table():
 
 @app.route('/delete_table', methods=["POST"])
 def delete_table():
-    """Receive a string and see if a table in the db can be deleted"""
+    """Receive {"table": string} and see if a table in the db can be deleted
+    return a success/fail msg"""
     get_con()
     cur = con.cursor()
 
@@ -63,7 +65,8 @@ def delete_table():
 
 @app.route('/insert_value', methods=["POST"])
 def insert_value():
-    """Receive a (street, postcode) tuple and see if it can be inserted to db"""
+    """Receive {"table": string, "address": (street, postcode)} 
+    and see if it can be inserted to db, return a success/fail msg"""
     get_con()
     cur = con.cursor()
 

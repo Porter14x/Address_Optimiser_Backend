@@ -7,10 +7,14 @@ import database as d
 from main import app, DB_PATH
 
 class MainTestCase(unittest.TestCase):
-    """Class for testing functions of main.py"""
+    """Class for testing functions of main.py - may see some redundancy in how it has similar tests
+    to DatabaseTestCase but will do so anyway to test request/response handling"""
 
     con = sqlite3.connect("test.db")
     FORBIDDEN_CHAR = [";", '"', "'"]
+    regex_fail_list = ["!", '"', "£", "$", "%", "^", "&", "*", "(", ")", "-", "+","=",
+                           "{", "}", "[", "]", "~", "#", ":", ";", "@", "'", "<", ",",
+                           ">", ".", "?", "/", "|", "¬", "`", " "]
 
     def setUp(self):
         # Create a test client
@@ -20,7 +24,9 @@ class MainTestCase(unittest.TestCase):
         #want database with vals to test the insertion/deletion + optimisation operations
         cur = self.con.cursor()
         d.create_table("dummy", cur, self.con)
+        d.rb_helper("dummy", cur)
         d.insert_value("dummy", "2 House St", "A01", cur, self.con)
+        d.rb_helper("dummy", cur)
         d.insert_value("dummy", "3 House St", "A01", cur, self.con)
         cur.close()
 
@@ -55,7 +61,7 @@ class MainTestCase(unittest.TestCase):
     #no patch for optimise_address since a fail case shouldn't get that far
     @patch("main.DB_PATH", "test.db")
     def test_insert_value_fail(self):
-        """handle an request fail case and ensure the error msgs are returned as expected"""
+        """handle a request fail case and ensure the error msgs are returned as expected"""
 
         for char in self.FORBIDDEN_CHAR:
             response0 = self.app.post("/insert_value",
@@ -69,6 +75,43 @@ class MainTestCase(unittest.TestCase):
             self.assertEqual(response1.text, f"Forbidden character {char} in input")
             self.assertEqual(response2.text, f"Forbidden character {char} in input")
 
+    @patch("main.DB_PATH", "test.db")
+    def test_create_table_success(self):
+        """test /create_table handles a correct request and returns a msg"""
+        response = self.app.post("/create_table", json={"table": "tester"})
+        self.assertEqual(response.text, "Table tester created")
+
+    @patch("main.DB_PATH", "test.db")
+    def test_create_table_fail(self):
+        """test /create_table handles incorrect requests and returns error msgs"""
+        duplicate = self.app.post("/create_table", json={"table": "dummy"}) #dummy from setUp
+        self.assertEqual(duplicate.text, "Table dummy already exists")
+
+        rb_fail = self.app.post("/create_table", json={"table": "tester_rb"})
+        self.assertEqual(rb_fail.text, "Cannot have _rb in table name")
+
+        for char in self.regex_fail_list:
+            regex_fail = self.app.post("/create_table", json={"table": f"fail{char}"})
+            self.assertEqual(regex_fail.text,
+            "Invalid table name. Please ensure only letters, numbers and underscores are used")
+
+    @patch("main.DB_PATH", "test.db")
+    def test_delete_table_success(self):
+        """test /delete_table handles a correct request and returns a msg"""
+        drop = self.app.post("/delete_table", json={"table": "dummy"})
+        self.assertEqual(drop.text, "Table dummy and its rollback deleted")
+
+    @patch("main.DB_PATH", "test.db")
+    def test_delete_table_fail(self):
+        """test /delete_table handles incorrect requests and returns error msgs"""
+        missing = self.app.post("/delete_table", json={"table": "blank"})
+        self.assertEqual(missing.text, "Table blank does not exist")
+
+        for char in self.regex_fail_list:
+            regex_fail = self.app.post("/create_table", json={"table": f"fail{char}"})
+            self.assertEqual(regex_fail.text,
+            "Invalid table name. Please ensure only letters, numbers and underscores are used")
+
 class DatabaseTestCase(unittest.TestCase):
     """Class for testing the functions of database.py"""
 
@@ -76,7 +119,7 @@ class DatabaseTestCase(unittest.TestCase):
     FORBIDDEN_CHAR = [";", '"', "'"]
     regex_fail_list = ["!", '"', "£", "$", "%", "^", "&", "*", "(", ")", "-", "+","=",
                            "{", "}", "[", "]", "~", "#", ":", ";", "@", "'", "<", ",",
-                           ">", ".", "?", "/", "|", "¬", "`",]
+                           ">", ".", "?", "/", "|", "¬", "`", " "]
 
     def setUp(self):
         """ensure dummy table is wiped"""
@@ -325,9 +368,12 @@ class DatabaseTestCase(unittest.TestCase):
         cur.close()
 
     def tearDown(self):
-        """double check dummy table wiped"""
+        """double check test tables wiped"""
         cur = self.con.cursor()
         cur.execute("DROP TABLE IF EXISTS dummy;")
+        cur.execute("DROP TABLE IF EXISTS dummy_rb;")
+        cur.execute("DROP TABLE IF EXISTS tester;")
+        cur.execute("DROP TABLE IF EXISTS tester_rb;")
         cur.close()
         return super().tearDown()
 
