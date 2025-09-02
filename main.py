@@ -46,9 +46,9 @@ def create_table():
 
     request_data = request.get_json()
     table = request_data['table']
-    msg = d.create_table(table, cur, con)
+    valid = d.create_table(table, cur, con)
     cur.close()
-    return msg
+    return valid[1]
 
 @app.route('/delete_table', methods=["POST"])
 def delete_table():
@@ -59,9 +59,9 @@ def delete_table():
 
     request_data = request.get_json()
     table = request_data['table']
-    msg = d.delete_table(table, cur, con)
+    valid = d.delete_table(table, cur, con)
     cur.close()
-    return msg
+    return valid[1]
 
 @app.route('/insert_value', methods=["POST"])
 def insert_value():
@@ -93,6 +93,59 @@ def insert_value():
 
     d.table_optimisation_update(table, new_add_order, cur)
     con.commit()
+
+    cur.close()
+    return valid[1]
+
+@app.route('/delete_value', methods=["POST"])
+def delete_value():
+    """Receive {"table": string, "address": (street, postcode)} 
+    and see if it can be deleted from db, return a success/fail msg"""
+    get_con()
+    cur = con.cursor()
+
+    request_data = request.get_json()
+    table = request_data['table']
+    address = request_data['address'] #(street, postcode)
+    valid = d.delete_value(table, address[0], address[1], cur, con)
+
+    if valid[0] is False:
+        #something wrong with input return the error message so no work wasted
+        cur.close()
+        return valid[1]
+
+    select_table = d.select_all(table, cur)
+    addresses = []
+    for result in select_table:
+        addresses.append({"q": f"{result[0]} {result[1]}", "format": "json"})
+
+    opt_adds = optimise_addresses(addresses)
+    new_add_order = []
+    for add in opt_adds:
+        #using select_table since already in (street, postcode) format
+        new_add_order.append(select_table[add["original_index"]])
+
+    d.table_optimisation_update(table, new_add_order, cur)
+    con.commit()
+
+    cur.close()
+    return valid[1]
+
+@app.route('/rollback', methods=["POST"])
+def rollback():
+    """Receive {"table": string} if there is a table_rb to revert to - original table dropped
+    return status msg"""
+    get_con()
+    cur = con.cursor()
+
+    request_data = request.get_json()
+    table = request_data['table']
+    valid = d.rollback_table(table, cur, con)
+
+    if valid[0] is False:
+        #something wrong with input return the error message so no work wasted
+        cur.close()
+        return valid[1]
 
     cur.close()
     return valid[1]

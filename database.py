@@ -75,15 +75,15 @@ def create_table(table, cur, con):
 
     valid = table_verification(table)
     if valid[0] is False:
-        return valid[1]
+        return valid
     
     if table in [t[0] for t in cur.execute("SELECT name FROM sqlite_master").fetchall()]:
-        return f"Table {table} already exists"
+        return (False, f"Table {table} already exists")
 
     creation = f"CREATE TABLE {table}(id INTEGER PRIMARY KEY, street VARCHAR(255), postcode VARCHAR(10));"
     cur.execute(creation)
     con.commit()
-    return f"Table {table} created"
+    return (True, f"Table {table} created")
 
 def insert_value(table, street, postcode, cur, con):
     """Insert street and postcode values into desired table, return status msg"""
@@ -116,10 +116,10 @@ def delete_table(table, cur, con):
 
     valid = table_verification(table)
     if valid[0] is False:
-        return valid[1]
+        return valid
 
     if table not in [table[0] for table in cur.execute("SELECT name FROM sqlite_master").fetchall()]:
-        return f"Table {table} does not exist"
+        return (False, f"Table {table} does not exist")
 
     sql_drop = f"DROP TABLE {table};"
     sql_drop_rb = f"DROP TABLE {table}_rb;"
@@ -127,7 +127,7 @@ def delete_table(table, cur, con):
     cur.execute(sql_drop)
     cur.execute(sql_drop_rb)
     con.commit()
-    return f"Table {table} and its rollback deleted"
+    return (True, f"Table {table} and its rollback deleted")
 
 def rollback_table(table, cur, con):
     """revert a table to its table_rb - original table is dropped"""
@@ -139,9 +139,9 @@ def rollback_table(table, cur, con):
     all_table = [table[0] for table in cur.execute("SELECT name FROM sqlite_master").fetchall()]
 
     if table not in all_table:
-        return f"Table {table} does not exist"
+        return (False, f"Table {table} does not exist")
     elif f"{table}_rb" not in all_table:
-        return f"No rollback for {table}"
+        return (False, f"No rollback for {table}")
 
     rb = f"{table}_rb"
     sql_rollback = f"""
@@ -151,7 +151,7 @@ def rollback_table(table, cur, con):
     """
     cur.executescript(sql_rollback)
     con.commit()
-    return f"Table {table} has been rolled back"
+    return (True, f"Table {table} has been rolled back")
 
 def select_all(table, cur):
     """get all (street, postcode) used when re-optimising table after deletion/insertion"""

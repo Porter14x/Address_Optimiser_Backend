@@ -24,9 +24,7 @@ class MainTestCase(unittest.TestCase):
         #want database with vals to test the insertion/deletion + optimisation operations
         cur = self.con.cursor()
         d.create_table("dummy", cur, self.con)
-        d.rb_helper("dummy", cur)
         d.insert_value("dummy", "2 House St", "A01", cur, self.con)
-        d.rb_helper("dummy", cur)
         d.insert_value("dummy", "3 House St", "A01", cur, self.con)
         cur.close()
 
@@ -74,6 +72,10 @@ class MainTestCase(unittest.TestCase):
             self.assertEqual(response0.text, f"Forbidden character {char} in input")
             self.assertEqual(response1.text, f"Forbidden character {char} in input")
             self.assertEqual(response2.text, f"Forbidden character {char} in input")
+        
+        duplicate = self.app.post("/insert_value",
+            json={"table": "dummy","address": ("2 House St", "A01")})
+        self.assertEqual(duplicate.text, "Street and postcode already in database")
 
     @patch("main.DB_PATH", "test.db")
     def test_create_table_success(self):
@@ -111,6 +113,105 @@ class MainTestCase(unittest.TestCase):
             regex_fail = self.app.post("/create_table", json={"table": f"fail{char}"})
             self.assertEqual(regex_fail.text,
             "Invalid table name. Please ensure only letters, numbers and underscores are used")
+
+    @patch("main.optimise_addresses")
+    @patch("main.DB_PATH", "test.db")
+    def test_delete_value_success(self, mock_opt):
+        """test handling an delete address request, ensure it
+        optimises the addresses correctly and ensure the _rb is before delete+optimise"""
+
+        cur = self.con.cursor()
+
+        d.insert_value("dummy", "4 House St", "A01", cur, self.con)
+        d.insert_value("dummy", "1 House Dr", "A01", cur, self.con)
+        #Assume that (somehow) 1 House Dr becomes the most optimal address to go to first when
+        #4 House St is deleted
+
+        #lat and lon arent used so val doesnt matter
+        mock_opt_json = [
+            {"lat": 0, "lon": 0, "original_index": 2}, #1 House Dr
+            {"lat": 0, "lon": 0, "original_index": 0}, #2 House St
+            {"lat": 0, "lon": 0, "original_index": 1}, #3 House St
+        ]
+        mock_opt.return_value = mock_opt_json
+
+        response = self.app.post("/delete_value", json={"table": "dummy", "address": ("4 House St", "A01")})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.text, "Deleted values (4 House St, A01) from dummy")
+
+        cur = self.con.cursor()
+        all_tables = [r[0] for r in
+                      cur.execute("SELECT name FROM sqlite_master").fetchall()]
+        self.assertTrue("dummy" in all_tables)
+        self.assertTrue("dummy_rb" in all_tables)
+        result_dummy = cur.execute("SELECT street, postcode FROM dummy").fetchall()
+        result_dummy_rb = cur.execute("SELECT street, postcode FROM dummy_rb").fetchall()
+        self.assertListEqual(result_dummy_rb, [("2 House St", "A01"), ("3 House St", "A01"),
+                                               ("4 House St", "A01"), ("1 House Dr", "A01")])
+        self.assertListEqual(result_dummy, [("1 House Dr", "A01"), ("2 House St", "A01"),
+                                            ("3 House St", "A01")])
+
+    #no patch for optimise_address since a fail case shouldn't get that far
+    @patch("main.DB_PATH", "test.db")
+    def test_delete_value_fail(self):
+        """handle a request fail case and ensure the error msgs are returned as expected"""
+
+        for char in self.FORBIDDEN_CHAR:
+            response0 = self.app.post("/delete_value",
+            json={"table": "dummy","address": ("1 House St", f"{char}A01")})
+            response1 = self.app.post("/delete_value",
+            json={"table": "dummy", "address": (f"{char}1 House St", "A01")})
+            response2 = self.app.post("/delete_value",
+            json={"table": "dummy", "address": (f"{char}1 House St", f"{char}A01")})
+
+            self.assertEqual(response0.text, f"Forbidden character {char} in input")
+            self.assertEqual(response1.text, f"Forbidden character {char} in input")
+            self.assertEqual(response2.text, f"Forbidden character {char} in input")
+        
+        missing = self.app.post("/delete_value",
+            json={"table": "dummy","address": ("1 None St", "A01")})
+        self.assertEqual(missing.text, "Street and postcode not found in database")
+
+    @patch("main.DB_PATH", "test.db")
+    def test_rollback_success(self):
+        cur = self.con.cursor()
+
+        response = self.app.post("/rollback", json={"table": "dummy"})
+        self.assertEqual(response.text, "Table dummy has been rolled back")
+
+        all_tables = [r[0] for r in
+                      cur.execute("SELECT name FROM sqlite_master").fetchall()]
+        self.assertTrue("dummy" in all_tables)
+        self.assertTrue("dummy_rb" not in all_tables)
+
+        result_dummy = cur.execute("SELECT street, postcode FROM dummy").fetchall()
+        self.assertListEqual(result_dummy, [("2 House St", "A01")])
+
+        cur.close()
+    
+    @patch("main.DB_PATH", "test.db")
+    def test_rollback_fail(self):
+        cur = self.con.cursor()
+
+        missing = self.app.post("/rollback", json={"table": "blank"})
+        self.assertEqual(missing.text, "Table blank does not exist")
+
+        d.create_table("no_rollback", cur, self.con)
+        no_rb = self.app.post("/rollback", json={"table": "no_rollback"})
+        self.assertEqual(no_rb.text, "No rollback for no_rollback")
+
+        cur.execute("DROP TABLE no_rollback;")
+        cur.close()
+
+    def tearDown(self):
+        """double check test tables wiped"""
+        cur = self.con.cursor()
+        cur.execute("DROP TABLE IF EXISTS dummy;")
+        cur.execute("DROP TABLE IF EXISTS dummy_rb;")
+        cur.execute("DROP TABLE IF EXISTS tester;")
+        cur.execute("DROP TABLE IF EXISTS tester_rb;")
+        cur.close()
+        return super().tearDown()
 
 class DatabaseTestCase(unittest.TestCase):
     """Class for testing the functions of database.py"""
@@ -153,7 +254,7 @@ class DatabaseTestCase(unittest.TestCase):
         cur.executescript("DROP TABLE IF EXISTS dummy; DROP TABLE IF EXISTS dummy_rb")
 
         d.create_table("dummy", cur, self.con)
-        self.assertEqual(d.create_table("dummy", cur, self.con), "Table dummy already exists")
+        self.assertEqual(d.create_table("dummy", cur, self.con)[1], "Table dummy already exists")
 
         self.assertTrue("dummy" in 
                         [r[0] for r in cur.execute("SELECT name FROM sqlite_master").fetchall()])
@@ -166,7 +267,7 @@ class DatabaseTestCase(unittest.TestCase):
         cur.executescript("DROP TABLE IF EXISTS dummy; DROP TABLE IF EXISTS dummy_rb")
 
         d.create_table("dummy", cur, self.con)
-        self.assertEqual(d.create_table("dummy", cur, self.con), "Table dummy already exists")
+        self.assertEqual(d.create_table("dummy", cur, self.con)[1], "Table dummy already exists")
 
         cur.close()
 
@@ -306,10 +407,9 @@ class DatabaseTestCase(unittest.TestCase):
 
         d.create_table("dummy", cur, self.con)
         #making sure we have a _rb
-        d.rb_helper("dummy", cur)
         d.insert_value("dummy", "3 House St", "A01", cur, self.con)
 
-        self.assertEqual(d.delete_table("dummy", cur, self.con), "Table dummy and its rollback deleted")
+        self.assertEqual(d.delete_table("dummy", cur, self.con)[1], "Table dummy and its rollback deleted")
 
         all_table = [t[0] for t in cur.execute("SELECT name FROM sqlite_master").fetchall()]
         self.assertEqual(len(all_table), 0)
@@ -322,7 +422,7 @@ class DatabaseTestCase(unittest.TestCase):
         cur = self.con.cursor()
         cur.executescript("DROP TABLE IF EXISTS dummy; DROP TABLE IF EXISTS dummy_rb")
 
-        self.assertEqual(d.delete_table("blank", cur, self.con), "Table blank does not exist")
+        self.assertEqual(d.delete_table("blank", cur, self.con)[1], "Table blank does not exist")
 
         cur.close()
     
@@ -334,7 +434,7 @@ class DatabaseTestCase(unittest.TestCase):
 
         d.rb_helper("dummy", cur)
         d.insert_value("dummy", "1 House St", "A01", cur, self.con)
-        self.assertEqual(d.rollback_table("dummy", cur, self.con), "Table dummy has been rolled back")
+        self.assertEqual(d.rollback_table("dummy", cur, self.con)[1], "Table dummy has been rolled back")
         all_table = [t[0] for t in cur.execute("SELECT name FROM sqlite_master").fetchall()]
         self.assertTrue("dummy_rb" not in all_table)
         self.assertTrue("dummy" in all_table)
@@ -349,9 +449,9 @@ class DatabaseTestCase(unittest.TestCase):
         cur = self.con.cursor()
         cur.executescript("DROP TABLE IF EXISTS dummy; DROP TABLE IF EXISTS dummy_rb")
 
-        self.assertEqual(d.rollback_table("blank", cur, self.con), "Table blank does not exist")
+        self.assertEqual(d.rollback_table("blank", cur, self.con)[1], "Table blank does not exist")
         d.create_table("dummy", cur, self.con)
-        self.assertEqual(d.rollback_table("dummy", cur, self.con), "No rollback for dummy")
+        self.assertEqual(d.rollback_table("dummy", cur, self.con)[1], "No rollback for dummy")
 
         cur.close()
 
