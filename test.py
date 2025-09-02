@@ -72,7 +72,7 @@ class MainTestCase(unittest.TestCase):
             self.assertEqual(response0.text, f"Forbidden character {char} in input")
             self.assertEqual(response1.text, f"Forbidden character {char} in input")
             self.assertEqual(response2.text, f"Forbidden character {char} in input")
-        
+
         duplicate = self.app.post("/insert_value",
             json={"table": "dummy","address": ("2 House St", "A01")})
         self.assertEqual(duplicate.text, "Street and postcode already in database")
@@ -189,7 +189,7 @@ class MainTestCase(unittest.TestCase):
         self.assertListEqual(result_dummy, [("2 House St", "A01")])
 
         cur.close()
-    
+
     @patch("main.DB_PATH", "test.db")
     def test_rollback_fail(self):
         """test a failcase rollback request and ensure error msg is returned as expected"""
@@ -239,13 +239,13 @@ class DatabaseTestCase(unittest.TestCase):
         for char in self.regex_fail_list:
             self.assertEqual(d.table_verification("table"+char)[1],
             "Invalid table name. Please ensure only letters, numbers and underscores are used")
-    
+
     def test_forbidden_char_check(self):
         """test forbidden chars are found"""
         for char in self.FORBIDDEN_CHAR:
             self.assertEqual(d.forbidden_char_check("street", f"{char}postcode")[1],
                              f"Forbidden character {char} in input")
-            self.assertEqual(d.forbidden_char_check(f"{char}street", f"postcode")[1],
+            self.assertEqual(d.forbidden_char_check(f"{char}street", "postcode")[1],
                              f"Forbidden character {char} in input")
             self.assertEqual(d.forbidden_char_check(f"{char}street", f"{char}postcode")[1],
                              f"Forbidden character {char} in input")
@@ -427,7 +427,7 @@ class DatabaseTestCase(unittest.TestCase):
         self.assertEqual(d.delete_table("blank", cur, self.con)[1], "Table blank does not exist")
 
         cur.close()
-    
+
     def test_rollback_table_success(self):
         """test rollback_table reverts to the table_rb"""
 
