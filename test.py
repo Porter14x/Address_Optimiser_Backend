@@ -4,7 +4,7 @@ import unittest
 import sqlite3
 from unittest.mock import patch
 import database as d
-from main import app, DB_PATH
+from main import app
 
 class MainTestCase(unittest.TestCase):
     """Class for testing functions of main.py - may see some redundancy in how it has similar tests
@@ -167,13 +167,14 @@ class MainTestCase(unittest.TestCase):
             self.assertEqual(response0.text, f"Forbidden character {char} in input")
             self.assertEqual(response1.text, f"Forbidden character {char} in input")
             self.assertEqual(response2.text, f"Forbidden character {char} in input")
-        
+
         missing = self.app.post("/delete_value",
             json={"table": "dummy","address": ("1 None St", "A01")})
         self.assertEqual(missing.text, "Street and postcode not found in database")
 
     @patch("main.DB_PATH", "test.db")
     def test_rollback_success(self):
+        """test a rollback request and ensure table is rolled back as expected"""
         cur = self.con.cursor()
 
         response = self.app.post("/rollback", json={"table": "dummy"})
@@ -191,6 +192,7 @@ class MainTestCase(unittest.TestCase):
     
     @patch("main.DB_PATH", "test.db")
     def test_rollback_fail(self):
+        """test a failcase rollback request and ensure error msg is returned as expected"""
         cur = self.con.cursor()
 
         missing = self.app.post("/rollback", json={"table": "blank"})
@@ -228,7 +230,7 @@ class DatabaseTestCase(unittest.TestCase):
         cur.executescript("DROP TABLE IF EXISTS dummy; DROP TABLE IF EXISTS dummy_rb")
         cur.close()
         return super().setUp()
-    
+
     def test_table_verification(self):
         """test tables are verified correctly"""
         rb_fail = "table_rb"

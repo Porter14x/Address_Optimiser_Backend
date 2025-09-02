@@ -3,8 +3,6 @@
 import sqlite3
 import re
 
-
-
 def forbidden_char_check(street, postcode):
     """checks street and postcode vals for any established forbidden characters
     return a (False, char) tuple if one is detected, (True, None) otherwise"""
@@ -53,7 +51,7 @@ def verify_insert(table, street, postcode, cur):
     result = [r[0] for r in cur.execute(sql_search, (street, postcode)).fetchall()]
     if len(result) > 0:
         return (False, "Street and postcode already in database")
-    
+
     return (True, None)
 
 def verify_delete(table, street, postcode, cur):
@@ -67,7 +65,7 @@ def verify_delete(table, street, postcode, cur):
     result = [r[0] for r in cur.execute(sql_search, (street, postcode)).fetchall()]
     if result == []:
         return (False, "Street and postcode not found in database")
-    
+
     return (True, None)
 
 def create_table(table, cur, con):
@@ -76,7 +74,7 @@ def create_table(table, cur, con):
     valid = table_verification(table)
     if valid[0] is False:
         return valid
-    
+
     if table in [t[0] for t in cur.execute("SELECT name FROM sqlite_master").fetchall()]:
         return (False, f"Table {table} already exists")
 
@@ -140,7 +138,7 @@ def rollback_table(table, cur, con):
 
     if table not in all_table:
         return (False, f"Table {table} does not exist")
-    elif f"{table}_rb" not in all_table:
+    if f"{table}_rb" not in all_table:
         return (False, f"No rollback for {table}")
 
     rb = f"{table}_rb"
