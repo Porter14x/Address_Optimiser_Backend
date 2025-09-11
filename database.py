@@ -120,7 +120,7 @@ def delete_table(table, cur, con):
         return (False, f"Table {table} does not exist")
 
     sql_drop = f"DROP TABLE {table};"
-    sql_drop_rb = f"DROP TABLE {table}_rb;"
+    sql_drop_rb = f"DROP TABLE IF EXISTS {table}_rb;"
 
     cur.execute(sql_drop)
     cur.execute(sql_drop_rb)
