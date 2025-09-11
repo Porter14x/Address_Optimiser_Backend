@@ -3,8 +3,6 @@
 import sqlite3
 import re
 
-
-
 def forbidden_char_check(street, postcode):
     """checks street and postcode vals for any established forbidden characters
     return a (False, char) tuple if one is detected, (True, None) otherwise"""
@@ -42,68 +40,84 @@ def table_verification(table):
 
     return (True, None)
 
+def verify_insert(table, street, postcode, cur):
+    """verify street and postcode isn't forbidden or duplicate"""
+
+    valid = forbidden_char_check(street, postcode)
+    if valid[0] is False:
+        return valid
+
+    sql_search = f"SELECT street, postcode FROM {table} WHERE street=? AND postcode=?;"
+    result = [r[0] for r in cur.execute(sql_search, (street, postcode)).fetchall()]
+    if len(result) > 0:
+        return (False, "Street and postcode already in database")
+
+    return (True, None)
+
+def verify_delete(table, street, postcode, cur):
+    """verify street and postcode isn't forbidden or missing"""
+
+    valid = forbidden_char_check(street, postcode)
+    if valid[0] is False:
+        return valid
+
+    sql_search = f"SELECT street, postcode FROM {table} WHERE street=? AND postcode=?;"
+    result = [r[0] for r in cur.execute(sql_search, (street, postcode)).fetchall()]
+    if result == []:
+        return (False, "Street and postcode not found in database")
+
+    return (True, None)
+
 def create_table(table, cur, con):
     """Create a table with the passed name if it doesn't exist"""
 
     valid = table_verification(table)
     if valid[0] is False:
-        return valid[1]
-    
-    if table in [t[0] for t in cur.execute("SELECT name FROM sqlite_master").fetchall()]:
-        return f"Table {table} already exists"
+        return valid
 
-    creation = f"CREATE TABLE {table}(id INTEGER PRIMARY KEY, street VARCHAR(255), postcode VARCHAR(10))"
+    if table in [t[0] for t in cur.execute("SELECT name FROM sqlite_master").fetchall()]:
+        return (False, f"Table {table} already exists")
+
+    creation = f"CREATE TABLE {table}(id INTEGER PRIMARY KEY, street VARCHAR(255), postcode VARCHAR(10));"
     cur.execute(creation)
     con.commit()
-    return f"Table {table} created"
+    return (True, f"Table {table} created")
 
 def insert_value(table, street, postcode, cur, con):
-    """Insert street and postcode values into desired table"""
+    """Insert street and postcode values into desired table, return status msg"""
 
-    valid = forbidden_char_check(street, postcode)
+    valid = verify_insert(table, street, postcode, cur)
     if valid[0] is False:
-        return valid[1]
-
-    sql_search = f"SELECT street, postcode FROM {table} WHERE street=? AND postcode=?;"
-    result = [r[0] for r in cur.execute(sql_search, (street, postcode)).fetchall()]
-    if len(result) > 0:
-        return "Street and postcode already in database"
-
+        return valid
     rb_helper(table, cur)
 
     sql_in = f"INSERT INTO {table} (street, postcode) VALUES (?, ?)"
     cur.execute(sql_in, (street, postcode))
     con.commit()
-    return f"Inserted values ({street}, {postcode}) into {table}"
+    return (True, f"Inserted values ({street}, {postcode}) into {table}")
 
 def delete_value(table, street, postcode, cur, con):
     """delete street and postcode value from desired table"""
 
-    valid = forbidden_char_check(street, postcode)
+    valid = verify_delete(table, street, postcode, cur)
     if valid[0] is False:
-        return f"Forbidden character {valid[1]} in input"
-
-    sql_search = f"SELECT street, postcode FROM {table} WHERE street=? AND postcode=?;"
-    result = [r[0] for r in cur.execute(sql_search, (street, postcode)).fetchall()]
-    if result == []:
-        return "Street and postcode not found in database"
-
+        return valid
     rb_helper(table, cur)
 
     sql_del = f"DELETE FROM {table} WHERE street=? AND postcode=?;"
     cur.execute(sql_del, (street, postcode))
     con.commit()
-    return f"Deleted values ({street}, {postcode}) from {table}"
+    return (True, f"Deleted values ({street}, {postcode}) from {table}")
 
 def delete_table(table, cur, con):
     """Fully delete a table and its rollback - irreversible"""
 
     valid = table_verification(table)
     if valid[0] is False:
-        return valid[1]
+        return valid
 
     if table not in [table[0] for table in cur.execute("SELECT name FROM sqlite_master").fetchall()]:
-        return f"Table {table} does not exist"
+        return (False, f"Table {table} does not exist")
 
     sql_drop = f"DROP TABLE {table};"
     sql_drop_rb = f"DROP TABLE {table}_rb;"
@@ -111,7 +125,7 @@ def delete_table(table, cur, con):
     cur.execute(sql_drop)
     cur.execute(sql_drop_rb)
     con.commit()
-    return f"Table {table} and its rollback deleted"
+    return (True, f"Table {table} and its rollback deleted")
 
 def rollback_table(table, cur, con):
     """revert a table to its table_rb - original table is dropped"""
@@ -123,9 +137,9 @@ def rollback_table(table, cur, con):
     all_table = [table[0] for table in cur.execute("SELECT name FROM sqlite_master").fetchall()]
 
     if table not in all_table:
-        return f"Table {table} does not exist"
-    elif f"{table}_rb" not in all_table:
-        return f"No rollback for {table}"
+        return (False, f"Table {table} does not exist")
+    if f"{table}_rb" not in all_table:
+        return (False, f"No rollback for {table}")
 
     rb = f"{table}_rb"
     sql_rollback = f"""
@@ -135,4 +149,25 @@ def rollback_table(table, cur, con):
     """
     cur.executescript(sql_rollback)
     con.commit()
-    return f"Table {table} has been rolled back"
+    return (True, f"Table {table} has been rolled back")
+
+def select_all(table, cur):
+    """get all (street, postcode) used when re-optimising table after deletion/insertion"""
+    sql_select = f"SELECT street, postcode FROM {table}"
+    output = cur.execute(sql_select).fetchall()
+
+    #output will look like [("1 House St", "A01"), ("2 House St", "A01"), ...]
+    return output
+
+def table_optimisation_update(table, new_add_order, cur):
+    """Update the table to reflect the new optimisation order in new_add_order"""
+
+    #make sure we have fresh table to insert into
+    sql_setup = f"""
+    DROP TABLE {table};
+    CREATE TABLE {table}(id INTEGER PRIMARY KEY, street VARCHAR(255), postcode VARCHAR(10));
+    """
+    cur.executescript(sql_setup)
+
+    for add in new_add_order:
+        cur.execute(f"INSERT INTO {table} (street, postcode) VALUES (?, ?);", (add[0], add[1]))
