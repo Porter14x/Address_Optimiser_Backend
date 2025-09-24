@@ -457,11 +457,43 @@ class DatabaseTestCase(unittest.TestCase):
 
         cur.close()
 
+    def test_get_all_tables(self):
+        """test get_all_tables gets the right output"""
+        cur = self.con.cursor()
+        cur.executescript("DROP TABLE IF EXISTS dummy1; DROP TABLE IF EXISTS dummy2")
+        cur.executescript("DROP TABLE IF EXISTS dummy1_rb; DROP TABLE IF EXISTS dummy2_rb")
+
+        expected = {
+            "dummy1": [("1 House St", "A01"),
+                       ("2 House St", "A01"),
+                       ("3 House St", "A01"),],
+            "dummy2": [("1 House Dr", "A02"),
+                       ("2 House Dr", "A02"),
+                       ("3 House Dr", "A02"),]
+        }
+
+        d.create_table("dummy1", cur, self.con)
+        d.create_table("dummy2", cur, self.con)
+
+        d.insert_value("dummy1", "1 House St", "A01", cur, self.con)
+        d.insert_value("dummy1", "2 House St", "A01", cur, self.con)
+        d.insert_value("dummy1", "3 House St", "A01", cur, self.con)
+
+        d.insert_value("dummy2", "1 House Dr", "A02", cur, self.con)
+        d.insert_value("dummy2", "2 House Dr", "A02", cur, self.con)
+        d.insert_value("dummy2", "3 House Dr", "A02", cur, self.con)
+
+        output = d.get_all_tables(cur)
+
+        self.assertDictEqual(output, expected)
+
     def tearDown(self):
         """double check test tables wiped"""
         cur = self.con.cursor()
         cur.execute("DROP TABLE IF EXISTS dummy;")
         cur.execute("DROP TABLE IF EXISTS dummy_rb;")
+        cur.executescript("DROP TABLE IF EXISTS dummy1; DROP TABLE IF EXISTS dummy2")
+        cur.executescript("DROP TABLE IF EXISTS dummy1_rb; DROP TABLE IF EXISTS dummy2_rb")
         cur.execute("DROP TABLE IF EXISTS tester;")
         cur.execute("DROP TABLE IF EXISTS tester_rb;")
         cur.close()

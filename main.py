@@ -150,5 +150,17 @@ def rollback():
     cur.close()
     return valid[1]
 
+@app.route('/refresh', methods=["POST"])
+def refresh():
+    """Get every table and its contents
+    return looks like {table: [(1 House St, A01), ...], ...}"""
+
+    get_con()
+    cur = con.cursor()
+
+    all_data = d.get_all_tables(cur)
+
+    return all_data
+
 if __name__=='__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
