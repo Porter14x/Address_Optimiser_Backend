@@ -171,3 +171,20 @@ def table_optimisation_update(table, new_add_order, cur):
 
     for add in new_add_order:
         cur.execute(f"INSERT INTO {table} (street, postcode) VALUES (?, ?);", (add[0], add[1]))
+
+def get_all_tables(cur):
+    """Get every table name & values to send to frontend
+    return looks like {table: [(1 House St, A01), ...]}"""
+    all_data = {}
+
+    all_table = [table[0] for table in cur.execute("SELECT name FROM sqlite_master").fetchall()]
+
+    for t in all_table:
+        if "_rb" in t:
+            continue
+        sql_select = f"SELECT street, postcode FROM {t}"
+        output = cur.execute(sql_select).fetchall()
+
+        all_data[t] = output
+    
+    return all_data
