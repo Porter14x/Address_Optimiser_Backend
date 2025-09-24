@@ -160,7 +160,7 @@ def refresh():
 
     all_data = d.get_all_tables(cur)
 
-    return all_data
+    return {"all_data": all_data}
 
 if __name__=='__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
