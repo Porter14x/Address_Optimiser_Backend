@@ -16,7 +16,7 @@ def geocode_adds(addresses):
     for add in addresses:
         r = requests.get(GEO_URL, add).json()
         if not r:
-            return (False, add)
+            return (False, add["q"])
         print(r)
         geos.append({"lat": r[0]["lat"], "lon": r[0]["lon"]})
     return (True, geos)
