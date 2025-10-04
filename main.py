@@ -10,6 +10,8 @@ import database as d
 app = Flask(__name__)
 
 DB_PATH = "rounds.db"
+VALID_STATE = 0 # True or False
+VALID_RETURN = 1 #postion of returned content eg a message, a list
 
 con = None
 
@@ -33,7 +35,11 @@ def optimise_addresses(addresses=None):
     if not addresses:
         request_data = request.get_json()
         addresses = request_data['addresses']
+
     geos = n.geocode_adds(addresses)
+    if geos[VALID_STATE] == False:
+        return f"Issue with geocoding address: {geos[VALID_RETURN]}"
+
     opt_adds = v.optimise_adds(geos)
     return opt_adds
 
@@ -48,7 +54,7 @@ def create_table():
     table = request_data['table']
     valid = d.create_table(table, cur, con)
     cur.close()
-    return valid[1]
+    return valid[VALID_RETURN]
 
 @app.route('/delete_table', methods=["POST"])
 def delete_table():
@@ -61,7 +67,7 @@ def delete_table():
     table = request_data['table']
     valid = d.delete_table(table, cur, con)
     cur.close()
-    return valid[1]
+    return valid[VALID_RETURN]
 
 @app.route('/insert_value', methods=["POST"])
 def insert_value():
@@ -75,10 +81,10 @@ def insert_value():
     address = request_data['address'] #(street, postcode)
     valid = d.insert_value(table, address[0], address[1], cur, con)
 
-    if valid[0] is False:
+    if valid[VALID_STATE] is False:
         #something wrong with input return the error message so no work wasted
         cur.close()
-        return valid[1]
+        return valid[VALID_RETURN]
 
     select_table = d.select_all(table, cur)
     addresses = []
@@ -86,6 +92,9 @@ def insert_value():
         addresses.append({"q": f"{result[0]} {result[1]}", "format": "json"})
 
     opt_adds = optimise_addresses(addresses)
+    if opt_adds[VALID_STATE] == False:
+        return f"Issue with geocoding address: {opt_adds[VALID_RETURN]}"
+
     new_add_order = []
     for add in opt_adds:
         #using select_table since already in (street, postcode) format
@@ -95,7 +104,7 @@ def insert_value():
     con.commit()
 
     cur.close()
-    return valid[1]
+    return valid[VALID_RETURN]
 
 @app.route('/delete_value', methods=["POST"])
 def delete_value():
@@ -109,10 +118,10 @@ def delete_value():
     address = request_data['address'] #(street, postcode)
     valid = d.delete_value(table, address[0], address[1], cur, con)
 
-    if valid[0] is False:
+    if valid[VALID_STATE] is False:
         #something wrong with input return the error message so no work wasted
         cur.close()
-        return valid[1]
+        return valid[VALID_RETURN]
 
     select_table = d.select_all(table, cur)
     addresses = []
@@ -129,7 +138,7 @@ def delete_value():
     con.commit()
 
     cur.close()
-    return valid[1]
+    return valid[VALID_RETURN]
 
 @app.route('/rollback', methods=["POST"])
 def rollback():
@@ -142,13 +151,13 @@ def rollback():
     table = request_data['table']
     valid = d.rollback_table(table, cur, con)
 
-    if valid[0] is False:
+    if valid[VALID_STATE] is False:
         #something wrong with input return the error message so no work wasted
         cur.close()
-        return valid[1]
+        return valid[VALID_RETURN]
 
     cur.close()
-    return valid[1]
+    return valid[VALID_RETURN]
 
 @app.route('/refresh', methods=["POST"])
 def refresh():
