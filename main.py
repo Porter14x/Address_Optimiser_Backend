@@ -40,7 +40,7 @@ def optimise_addresses(addresses=None):
     if geos[VALID_STATE] == False:
         return f"Issue with geocoding address: {geos[VALID_RETURN]}"
 
-    opt_adds = v.optimise_adds(geos)
+    opt_adds = v.optimise_adds(geos[VALID_RETURN])
     return opt_adds
 
 @app.route('/create_table', methods=["POST"])
