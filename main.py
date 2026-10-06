@@ -3,7 +3,9 @@ and calling functions from other modules to satisfy the requests"""
 
 import sqlite3
 import atexit
+import os
 from flask import Flask, request
+from pyngrok import ngrok, conf
 import nominatim as n
 import valhalla as v
 import database as d
@@ -29,12 +31,15 @@ def close_con():
 
 atexit.register(close_con)
 
-@app.route('/nom', methods=["POST"])
-def nom_test():
-    geos = n.geocode_adds(request.get_json()['addresses'])
-    if geos[VALID_STATE] == False:
-        return (False, f"Issue with geocoding address: {geos[VALID_RETURN]}")
-    return {"status": "success", "data": geos[VALID_RETURN]}
+def init_ngrok():
+    conf.get_default().region = "uk"
+
+    try:
+        # tunnel on port 5000 with static ngrok domain
+        public_url = ngrok.connect(5000, url="scrambled-reputably-composer.ngrok-free.dev").public_url
+        print(f" * Public Tunnel URL: {public_url}")
+    except Exception as e:
+        print(f" * Ngrok tunnel warning (is another instance running?): {e}")
 
 @app.route('/optimise', methods=["POST"])
 def optimise_addresses(addresses=None):
@@ -179,4 +184,8 @@ def refresh():
     return {"all_data": all_data}
 
 if __name__=='__main__':
+    #stop tunnel spawning in flask parent process (when debug=true)
+    if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+        init_ngrok()
+
     app.run(debug=True, host='0.0.0.0', port=5000)
