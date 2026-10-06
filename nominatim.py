@@ -4,7 +4,7 @@ import requests
 import re
 
 GEO_URL = "http://localhost:7070/search" #Nominatim
-POSTCODE_RE = "^([Gg][1-9]\d?|[Pp][Aa]\d{1,2}|[Mm][Ll]\d{1,2})\s*\d[A-Za-z]{2}$" # G, PA and ML postcodes
+POSTCODE_RE = "([Gg][1-9]\d?|[Pp][Aa]\d{1,2}|[Mm][Ll]\d{1,2})\s*\d[A-Za-z]{2}" # G, PA and ML postcodes
 
 def geocode_adds(addresses):
     """
@@ -20,7 +20,7 @@ def geocode_adds(addresses):
         if not r:
             x = re.search(POSTCODE_RE, add["q"])
             #print(x.span)
-            r = requests.get(GEO_URL, {"q": add["q"][x.span()[0]:x.span()[1]], "format": "json"}).json()
+            r = requests.get(GEO_URL, {"q": x.group(), "format": "json"}).json()
             if not r:
                 return (False, add["q"])
         #print(r)
