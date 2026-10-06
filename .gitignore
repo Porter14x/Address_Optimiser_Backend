@@ -218,3 +218,5 @@ add_opt/
 
 #ignore database files
 *.db
+
+dummy.py
