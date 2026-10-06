@@ -29,6 +29,13 @@ def close_con():
 
 atexit.register(close_con)
 
+@app.route('/nom', methods=["POST"])
+def nom_test():
+    geos = n.geocode_adds(request.get_json()['addresses'])
+    if geos[VALID_STATE] == False:
+        return f"Issue with geocoding address: {geos[VALID_RETURN]}"
+    return geos
+
 @app.route('/optimise', methods=["POST"])
 def optimise_addresses(addresses=None):
     """Process the the requests addresses and return JSON of the addresses in optimised order"""

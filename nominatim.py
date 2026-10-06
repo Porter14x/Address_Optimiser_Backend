@@ -19,7 +19,7 @@ def geocode_adds(addresses):
         r = requests.get(GEO_URL, add).json()
         if not r:
             x = re.search(POSTCODE_RE, r)
-            print(x.span)
+            #print(x.span)
             r = requests.get(GEO_URL, {"q": x.span, "format": "json"}).json()
             if not r:
                 return (False, add["q"])
