@@ -1,8 +1,10 @@
 """Functions related to interacting with the Nominatim engine should be placed here"""
 
 import requests
+import re
 
 GEO_URL = "http://localhost:7070/search" #Nominatim
+POSTCODE_RE = "^([Gg][1-9]\d?|[Pp][Aa]\d{1,2}|[Mm][Ll]\d{1,2})\s*\d[A-Za-z]{2}$" # G, PA and ML postcodes
 
 def geocode_adds(addresses):
     """
@@ -16,7 +18,11 @@ def geocode_adds(addresses):
     for add in addresses:
         r = requests.get(GEO_URL, add).json()
         if not r:
-            return (False, add["q"])
-        print(r)
+            x = re.search(POSTCODE_RE, r)
+            print(x.span)
+            r = requests.get(GEO_URL, {"q": x.span, "format": "json"}).json()
+            if not r:
+                return (False, add["q"])
+        #print(r)
         geos.append({"lat": r[0]["lat"], "lon": r[0]["lon"]})
     return (True, geos)
