@@ -33,7 +33,7 @@ atexit.register(close_con)
 def nom_test():
     geos = n.geocode_adds(request.get_json()['addresses'])
     if geos[VALID_STATE] == False:
-        return f"Issue with geocoding address: {geos[VALID_RETURN]}"
+        return (False, f"Issue with geocoding address: {geos[VALID_RETURN]}")
     return geos
 
 @app.route('/optimise', methods=["POST"])
