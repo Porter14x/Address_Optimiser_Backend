@@ -32,11 +32,11 @@ def close_con():
 atexit.register(close_con)
 
 def init_ngrok():
-    conf.get_default().region = "uk"
+    #conf.get_default().region = "uk"
 
     try:
         # tunnel on port 5000 with static ngrok domain
-        public_url = ngrok.connect(5000, url="https://scrambled-reputably-composer.ngrok-free.dev").public_url
+        public_url = ngrok.connect(5000, url="scrambled-reputably-composer.ngrok-free.dev").public_url
         print(f" * Public Tunnel URL: {public_url}")
     except Exception as e:
         print(f" * Ngrok tunnel warning (is another instance running?): {e}")
